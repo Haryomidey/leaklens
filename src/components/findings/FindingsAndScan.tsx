@@ -1,59 +1,65 @@
+import {useNavigate} from 'react-router-dom';
+import {AlertCircle, Check, ChevronRight} from 'lucide-react';
 import {Finding, ScanStep} from '../../lib/scanTypes';
-import { Badge } from '../ui/Badge';
-import { Card } from '../ui/Card';
-import { ChevronRight, AlertCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import {Badge} from '../ui/Badge';
+import {Card} from '../ui/Card';
 
-export function FindingCard({ finding }: { finding: Finding }) {
+export function FindingCard({finding}: {finding: Finding}) {
   const navigate = useNavigate();
 
   return (
-    <Card 
-      className="p-4 cursor-pointer hover:border-zinc-400 group relative mb-3"
+    <Card
+      className="group relative mb-2 cursor-pointer p-4 hover:border-zinc-300 hover:bg-zinc-50/60"
       onClick={() => navigate(`/findings/${finding.id}`)}
     >
-      <div className="flex items-start justify-between mb-2">
+      <div className="mb-2 flex items-start justify-between">
         <Badge variant={finding.severity}>{finding.severity}</Badge>
-        <div className="p-1 bg-zinc-50 rounded-lg group-hover:bg-zinc-100 transition-colors">
-          <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:text-zinc-600" />
+        <div className="rounded-md p-1 text-zinc-400 transition-colors group-hover:text-zinc-700">
+          <ChevronRight className="h-4 w-4" />
         </div>
       </div>
-      
-      <h3 className="font-bold text-sm mb-1 line-clamp-1">{finding.title}</h3>
-      <p className="text-[11px] text-zinc-500 font-mono truncate mb-2">{finding.path}</p>
-      
-      <div className="flex items-center gap-1.5 mt-auto">
-        <div className="flex items-center gap-1 bg-zinc-100 px-1.5 py-0.5 rounded text-[10px] font-bold text-zinc-600">
-          <span className="w-1 h-1 rounded-full bg-zinc-400" />
+
+      <h3 className="mb-1 line-clamp-1 text-sm font-semibold">{finding.title}</h3>
+      <p className="mb-3 truncate font-mono text-[11px] text-zinc-500">{finding.path}</p>
+
+      <div className="mt-auto flex items-center gap-2 text-[11px] text-zinc-500">
+        <div className="flex items-center gap-1">
+          <span className="h-1 w-1 rounded-full bg-zinc-400" />
           {finding.category}
         </div>
-        <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-          {finding.confidence}% Confidence
-        </div>
+        <div>{finding.confidence}% match</div>
       </div>
     </Card>
   );
 }
 
-export function ScanStepRow({ step }: { step: ScanStep }) {
+export function ScanStepRow({step}: {step: ScanStep}) {
   const icons = {
-    pending: <div className="w-2 h-2 rounded-full bg-zinc-200" />,
-    scanning: <AlertCircle className="w-5 h-5 text-blue-500 animate-spin" />,
-    complete: <div className="w-5 h-5 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center font-bold text-[10px]">✓</div>,
-    warning: <div className="w-5 h-5 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center font-bold text-[10px]">!</div>,
+    pending: <div className="h-2 w-2 rounded-full bg-zinc-200" />,
+    scanning: <AlertCircle className="h-4 w-4 animate-spin text-blue-500" />,
+    complete: (
+      <div className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
+        <Check className="h-3.5 w-3.5" />
+      </div>
+    ),
+    warning: (
+      <div className="flex h-5 w-5 items-center justify-center rounded-md bg-orange-100 text-[11px] font-semibold text-orange-700">
+        !
+      </div>
+    ),
   };
 
   return (
-    <div className="flex items-start gap-3 p-3 border-b border-zinc-100 last:border-0">
-      <div className="mt-1 flex-shrink-0 w-5 h-5 flex items-center justify-center">
-        {icons[step.status as keyof typeof icons]}
+    <div className="flex items-start gap-3 border-b border-zinc-100 p-3 last:border-0">
+      <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
+        {icons[step.status]}
       </div>
       <div className="flex-1">
-        <div className="flex items-center justify-between mb-0.5">
-          <span className="font-bold text-sm">{step.name}</span>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{step.status}</span>
+        <div className="mb-0.5 flex items-center justify-between">
+          <span className="text-sm font-semibold">{step.name}</span>
+          <span className="text-[11px] font-medium capitalize text-zinc-400">{step.status}</span>
         </div>
-        <p className="text-[11px] text-zinc-500">{step.description}</p>
+        <p className="text-xs leading-snug text-zinc-500">{step.description}</p>
       </div>
     </div>
   );

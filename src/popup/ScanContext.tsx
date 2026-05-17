@@ -2,6 +2,7 @@ import {createContext, ReactNode, useCallback, useContext, useEffect, useMemo, u
 import {emptyScanResult, ScanResult} from '../lib/scanTypes';
 
 interface ScanContextValue {
+  dismissFinding: (id: string) => void;
   error: string | null;
   isScanning: boolean;
   result: ScanResult;
@@ -14,10 +15,82 @@ function canUseChromeTabs() {
   return typeof chrome !== 'undefined' && Boolean(chrome.tabs?.query && chrome.tabs?.sendMessage);
 }
 
+function canInjectScanner() {
+  return typeof chrome !== 'undefined' && Boolean(chrome.scripting?.executeScript);
+}
+
+function isInjectableUrl(url = '') {
+  return /^(https?:|file:)/i.test(url);
+}
+
+function getPageFromTab(tab: {title?: string; url?: string}) {
+  if (!tab.url) {
+    return {hostname: tab.title || 'Current page', url: ''};
+  }
+
+  try {
+    const url = new URL(tab.url);
+    return {
+      hostname: url.hostname || tab.title || 'Current page',
+      url: tab.url,
+    };
+  } catch {
+    return {hostname: tab.title || 'Current page', url: tab.url};
+  }
+}
+
+function isMissingReceiver(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('Receiving end does not exist') || message.includes('Could not establish connection');
+}
+
+function waitForContentScript() {
+  return new Promise(resolve => {
+    window.setTimeout(resolve, 80);
+  });
+}
+
+async function requestScan(tabId: number) {
+  const response = await chrome.tabs.sendMessage(tabId, {action: 'RUN_SCAN'});
+
+  if (!response?.result) {
+    throw new Error('The page did not return scan results. Refresh the page and try again.');
+  }
+
+  return response.result as ScanResult;
+}
+
 export function ScanProvider({children}: {children: ReactNode}) {
   const [result, setResult] = useState<ScanResult>(() => emptyScanResult());
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dismissFinding = useCallback((id: string) => {
+    setResult(current => {
+      const findings = current.findings.filter(finding => finding.id !== id);
+      const severityWeight = {critical: 35, high: 24, medium: 14, low: 7};
+
+      return {
+        ...current,
+        findings,
+        score: Math.min(100, findings.reduce((score, finding) => score + severityWeight[finding.severity], 0)),
+        stats: current.stats.map(stat => {
+        if (stat.id === 'secrets') {
+          return {...stat, value: findings.filter(finding => finding.category === 'Secrets').length};
+        }
+
+        if (stat.id === 'routes') {
+          return {...stat, value: findings.filter(finding => finding.category === 'Routes').length};
+        }
+
+        if (stat.id === 'sourcemaps') {
+          return {...stat, value: findings.filter(finding => finding.category === 'Source Maps').length};
+        }
+
+        return stat;
+        }),
+      };
+    });
+  }, []);
 
   const refreshScan = useCallback(async () => {
     setIsScanning(true);
@@ -37,17 +110,31 @@ export function ScanProvider({children}: {children: ReactNode}) {
         throw new Error('No active tab found.');
       }
 
-      const response = await chrome.tabs.sendMessage(tab.id, {action: 'RUN_SCAN'});
+      const page = getPageFromTab(tab);
+      setResult(emptyScanResult('Checking this page...', page));
 
-      if (!response?.result) {
-        throw new Error('The page did not return scan results. Refresh the page and try again.');
+      if (!isInjectableUrl(tab.url)) {
+        throw new Error('LeakLens can scan regular website tabs. Open an http, https, or local file page and try again.');
       }
 
-      setResult(response.result);
+      try {
+        setResult(await requestScan(tab.id));
+      } catch (scanError) {
+        if (!isMissingReceiver(scanError) || !canInjectScanner()) {
+          throw scanError;
+        }
+
+        await chrome.scripting.executeScript({
+          target: {tabId: tab.id},
+          files: ['content.js'],
+        });
+        await waitForContentScript();
+        setResult(await requestScan(tab.id));
+      }
     } catch (scanError) {
       const message = scanError instanceof Error ? scanError.message : 'Unable to scan the current page.';
       setError(message);
-      setResult(emptyScanResult(message));
+      setResult(current => emptyScanResult(message, {hostname: current.hostname, url: current.url}));
     } finally {
       setIsScanning(false);
     }
@@ -58,8 +145,8 @@ export function ScanProvider({children}: {children: ReactNode}) {
   }, [refreshScan]);
 
   const value = useMemo(
-    () => ({error, isScanning, result, refreshScan}),
-    [error, isScanning, refreshScan, result],
+    () => ({dismissFinding, error, isScanning, result, refreshScan}),
+    [dismissFinding, error, isScanning, refreshScan, result],
   );
 
   return <ScanContext.Provider value={value}>{children}</ScanContext.Provider>;

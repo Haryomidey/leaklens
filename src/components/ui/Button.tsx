@@ -15,7 +15,7 @@ export function Button({
   ...props 
 }: ButtonProps) {
   const variants = {
-    primary: 'bg-zinc-900 text-white hover:bg-zinc-800 border border-zinc-700 shadow-sm',
+    primary: 'bg-zinc-900 text-white hover:bg-zinc-800 border border-zinc-900 shadow-sm',
     secondary: 'bg-zinc-100 text-zinc-900 hover:bg-zinc-200 border border-zinc-200',
     outline: 'bg-transparent text-zinc-900 border border-zinc-200 hover:bg-zinc-50',
     ghost: 'bg-transparent text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900',
@@ -23,16 +23,16 @@ export function Button({
   };
 
   const sizes = {
-    sm: 'px-3 py-1.5 text-xs font-medium rounded-lg',
-    md: 'px-4 py-2 text-sm font-medium rounded-xl',
-    lg: 'px-6 py-3 text-base font-medium rounded-2xl',
-    icon: 'p-2 rounded-xl',
+    sm: 'px-3 py-1.5 text-xs font-semibold rounded-md',
+    md: 'px-4 py-2 text-sm font-semibold rounded-lg',
+    lg: 'px-6 py-3 text-base font-semibold rounded-lg',
+    icon: 'p-2 rounded-lg',
   };
 
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-zinc-900/10',
+        'inline-flex cursor-pointer items-center justify-center whitespace-nowrap text-center leading-none transition-colors active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-zinc-900/10',
         variants[variant],
         sizes[size],
         className

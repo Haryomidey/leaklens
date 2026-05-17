@@ -1,59 +1,54 @@
-import { cn } from '../../lib/utils';
-import { Card } from '../ui/Card';
+import {cn} from '../../lib/utils';
+import {Card} from '../ui/Card';
 
-export function RiskScoreCard({ score }: { score: number }) {
+export function RiskScoreCard({score}: {score: number}) {
   let color = 'text-red-600';
-  let label = 'Critical';
-  let bg = 'bg-red-50';
-  let border = 'border-red-100';
+  let label = 'Needs attention';
+  let bar = 'bg-red-500';
 
   if (score < 30) {
     color = 'text-emerald-600';
-    label = 'Low Risk';
-    bg = 'bg-emerald-50';
-    border = 'border-emerald-100';
+    label = 'Looks quiet';
+    bar = 'bg-emerald-500';
   } else if (score < 60) {
     color = 'text-blue-600';
-    label = 'Medium Risk';
-    bg = 'bg-blue-50';
-    border = 'border-blue-100';
+    label = 'Worth a look';
+    bar = 'bg-blue-500';
   } else if (score < 85) {
     color = 'text-orange-600';
-    label = 'High Risk';
-    bg = 'bg-orange-50';
-    border = 'border-orange-100';
+    label = 'Review soon';
+    bar = 'bg-orange-500';
   }
 
   return (
-    <Card className={cn("p-6 flex flex-col items-center justify-center text-center", bg, border)}>
-      <div className="flex flex-col items-center">
-        <span className={cn("text-5xl font-extrabold tracking-tighter mb-1", color)}>
-          {score}
-        </span>
-        <span className="text-zinc-500 text-xs font-bold uppercase tracking-wider">
-          Security Score
-        </span>
+    <Card className="p-4">
+      <div className="mb-3 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-zinc-900">Current page</p>
+          <p className="mt-0.5 text-xs text-zinc-500">{label}</p>
+        </div>
+        <span className={cn('text-3xl font-semibold tabular-nums', color)}>{score}</span>
       </div>
-      <div className={cn("mt-4 px-4 py-1.5 rounded-full border bg-white/50 text-xs font-bold uppercase tracking-widest", color, border)}>
-        {label}
+      <div className="h-1.5 overflow-hidden rounded-full bg-zinc-100">
+        <div className={cn('h-full rounded-full', bar)} style={{width: `${score}%`}} />
       </div>
     </Card>
   );
 }
 
-export function StatCard({ label, value, onClick }: { label: string; value: string | number; onClick?: () => void }) {
+export function StatCard({label, value, onClick}: {label: string; value: string | number; onClick?: () => void}) {
   const isZero = value === 0;
 
   return (
-    <Card 
+    <Card
       className={cn(
-        "p-3 flex flex-col items-center justify-center text-center cursor-pointer hover:border-zinc-300",
-        isZero ? "opacity-50 grayscale" : ""
+        'flex cursor-pointer flex-col justify-center p-3 hover:border-zinc-300',
+        isZero ? 'text-zinc-400' : '',
       )}
       onClick={onClick}
     >
-      <span className="text-xl font-bold tracking-tight mb-0.5">{value}</span>
-      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider leading-none">{label}</span>
+      <span className="mb-1 text-xl font-semibold leading-none tabular-nums">{value}</span>
+      <span className="text-xs font-medium leading-none text-zinc-500">{label}</span>
     </Card>
   );
 }

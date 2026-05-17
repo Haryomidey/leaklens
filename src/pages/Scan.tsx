@@ -35,14 +35,14 @@ export default function Scan() {
             <span className="text-xl font-black tracking-tighter">{progress}%</span>
           </div>
         </div>
-        <h2 className="mb-1 text-lg font-bold">Scanning {result.hostname}</h2>
+        <h2 className="mb-1 text-lg font-semibold">Checking {result.hostname}</h2>
         <p className="text-sm text-zinc-500">
-          {error ?? 'Auditing client-side assets for vulnerabilities...'}
+          {error ?? 'Looking through scripts, routes, and visible page config.'}
         </p>
       </div>
 
       <div className="flex-1 px-4 pb-4">
-        <div className="overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
           {result.steps.map(step => (
             <ScanStepRow key={step.id} step={step} />
           ))}
@@ -56,7 +56,7 @@ export default function Scan() {
           onClick={() => navigate('/')}
           disabled={isScanning || progress < 100}
         >
-          {isScanning || progress < 100 ? 'Scanning...' : 'View Results'}
+          {isScanning || progress < 100 ? 'Checking...' : 'Back to summary'}
         </Button>
       </div>
     </div>

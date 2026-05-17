@@ -1,5 +1,5 @@
 import {useNavigate} from 'react-router-dom';
-import {ArrowRight, RefreshCw, Zap} from 'lucide-react';
+import {ArrowRight, RefreshCw, Search} from 'lucide-react';
 import {PopupHeader} from '../components/layout/PopupHeader';
 import {RiskScoreCard, StatCard} from '../components/dashboard/DashboardMetrics';
 import {FindingCard} from '../components/findings/FindingsAndScan';
@@ -32,24 +32,24 @@ export default function Dashboard() {
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400">Recent Findings</h3>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/findings')} className="h-6 px-2 text-[10px]">
-              View All
-              <ArrowRight className="ml-1 h-3 w-3" />
+            <h3 className="text-sm font-semibold text-zinc-900">Issues</h3>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/findings')} className="h-7 px-2 text-xs">
+              View all
+              <ArrowRight className="ml-1 h-3.5 w-3.5" />
             </Button>
           </div>
 
           {recentFindings.length > 0 ? (
-            <div className="space-y-0">
+            <div>
               {recentFindings.map(finding => (
                 <FindingCard key={finding.id} finding={finding} />
               ))}
             </div>
           ) : (
             <EmptyState
-              title={error ? 'Scan unavailable' : 'No findings detected'}
-              description={error ?? 'The current page did not expose known client-side risk patterns.'}
-              actionLabel="Run Scan"
+              title={error ? 'Could not scan this tab' : 'No issues found'}
+              description={error ?? 'Nothing obvious showed up on this page. You can scan again after the page changes.'}
+              actionLabel="Scan again"
               onAction={() => void refreshScan()}
             />
           )}
@@ -58,11 +58,11 @@ export default function Dashboard() {
 
       <div className="mt-auto flex gap-2 border-t border-zinc-100 bg-white p-4">
         <Button className="flex-1 gap-2" onClick={() => { void refreshScan(); navigate('/scan'); }} disabled={isScanning}>
-          {isScanning ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4 fill-white" />}
-          {isScanning ? 'Scanning' : 'Scan Page'}
+          {isScanning ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          {isScanning ? 'Scanning' : 'Scan page'}
         </Button>
         <Button variant="outline" className="flex-1" onClick={() => navigate('/report')}>
-          Generate Report
+          Open report
         </Button>
       </div>
     </div>

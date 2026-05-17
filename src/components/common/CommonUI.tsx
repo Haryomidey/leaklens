@@ -1,19 +1,19 @@
-import { ShieldCheck } from 'lucide-react';
-import { Button } from '../ui/Button';
+import {SearchCheck} from 'lucide-react';
+import {Button} from '../ui/Button';
 
-export function EmptyState({ title, description, onAction, actionLabel }: { 
-  title: string; 
-  description: string; 
+export function EmptyState({title, description, onAction, actionLabel}: {
+  title: string;
+  description: string;
   onAction?: () => void;
   actionLabel?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center text-center p-8">
-      <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-4">
-        <ShieldCheck className="w-8 h-8 text-emerald-500" />
+    <div className="flex flex-col items-center justify-center p-8 text-center">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-zinc-100">
+        <SearchCheck className="h-6 w-6 text-zinc-600" />
       </div>
-      <h3 className="font-bold text-lg mb-2">{title}</h3>
-      <p className="text-sm text-zinc-500 mb-6">{description}</p>
+      <h3 className="mb-2 text-base font-semibold">{title}</h3>
+      <p className="mb-6 text-sm leading-relaxed text-zinc-500">{description}</p>
       {onAction && actionLabel && (
         <Button onClick={onAction}>{actionLabel}</Button>
       )}
@@ -21,42 +21,42 @@ export function EmptyState({ title, description, onAction, actionLabel }: {
   );
 }
 
-export function ToggleRow({ label, description, checked, onChange }: {
+export function ToggleRow({label, description, checked, onChange}: {
   label: string;
   description?: string;
   checked: boolean;
   onChange: (val: boolean) => void;
 }) {
   return (
-    <div className="flex items-start justify-between py-4 border-b border-zinc-100 last:border-0">
+    <div className="flex items-start justify-between border-b border-zinc-100 py-4 last:border-0">
       <div className="flex-1 pr-4">
-        <h4 className="font-bold text-sm leading-none mb-1.5">{label}</h4>
-        {description && <p className="text-[11px] text-zinc-500 leading-tight">{description}</p>}
+        <h4 className="mb-1.5 text-sm font-semibold leading-none">{label}</h4>
+        {description && <p className="text-xs leading-snug text-zinc-500">{description}</p>}
       </div>
-      <button 
+      <button
         onClick={() => onChange(!checked)}
-        className={`w-10 h-5 rounded-full transition-colors relative flex items-center ${checked ? 'bg-zinc-900' : 'bg-zinc-200'}`}
+        className={`relative flex h-5 w-9 cursor-pointer items-center rounded-full transition-colors ${checked ? 'bg-zinc-900' : 'bg-zinc-200'}`}
       >
-        <div className={`w-3.5 h-3.5 bg-white rounded-full shadow-sm absolute transition-all ${checked ? 'right-0.5' : 'left-0.5'}`} />
+        <div className={`absolute h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-all ${checked ? 'right-0.5' : 'left-0.5'}`} />
       </button>
     </div>
   );
 }
 
-export function EvidenceBlock({ code }: { code: string }) {
+export function EvidenceBlock({code}: {code: string}) {
   return (
-    <div className="bg-zinc-900 rounded-xl p-4 font-mono text-[11px] overflow-hidden relative group">
-      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="h-7 text-[10px] bg-zinc-800 border-zinc-700 text-zinc-300 hover:text-white"
+    <div className="group relative overflow-hidden rounded-lg bg-zinc-950 p-4 font-mono text-[11px]">
+      <div className="absolute right-3 top-3 opacity-0 transition-opacity group-hover:opacity-100">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 bg-zinc-800 text-[10px] text-zinc-200 hover:text-white"
           onClick={() => navigator.clipboard.writeText(code)}
         >
           Copy
         </Button>
       </div>
-      <pre className="text-zinc-300 overflow-x-auto">
+      <pre className="overflow-x-auto text-zinc-300">
         <code>{code}</code>
       </pre>
     </div>

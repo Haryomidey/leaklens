@@ -1,79 +1,119 @@
-import { useState } from 'react';
-import { PopupHeader } from '../components/layout/PopupHeader';
-import { ToggleRow } from '../components/common/CommonUI';
-import { Button } from '../components/ui/Button';
+import {useEffect, useState} from 'react';
+import {PopupHeader} from '../components/layout/PopupHeader';
+import {ToggleRow} from '../components/common/CommonUI';
+import {Button} from '../components/ui/Button';
+import {useScan} from '../popup/ScanContext';
+
+const defaultSettings = {
+  autoScan: false,
+  overlays: true,
+  lowConfidence: false,
+  sourceMaps: true,
+  buckets: true,
+  configs: true,
+};
+
+type SettingsState = typeof defaultSettings;
+
+function canUseStorage() {
+  return typeof chrome !== 'undefined' && Boolean(chrome.storage?.local);
+}
 
 export default function Settings() {
-  const [settings, setSettings] = useState({
-    autoScan: false,
-    overlays: true,
-    lowConfidence: false,
-    sourceMaps: true,
-    buckets: true,
-    configs: true,
-  });
+  const [settings, setSettings] = useState<SettingsState>(defaultSettings);
+  const [status, setStatus] = useState('Saved');
+  const {refreshScan} = useScan();
 
-  const update = (key: keyof typeof settings) => (val: boolean) => {
-    setSettings(prev => ({ ...prev, [key]: val }));
+  useEffect(() => {
+    if (!canUseStorage()) return;
+
+    void chrome.storage.local.get<{leaklensSettings?: SettingsState}>('leaklensSettings').then(stored => {
+      if (stored.leaklensSettings) {
+        setSettings({...defaultSettings, ...stored.leaklensSettings});
+      }
+    });
+  }, []);
+
+  const persist = (next: SettingsState) => {
+    setSettings(next);
+    setStatus('Saving...');
+
+    if (!canUseStorage()) {
+      setStatus('Saved here');
+      return;
+    }
+
+    void chrome.storage.local.set({leaklensSettings: next}).then(() => {
+      setStatus('Saved');
+    });
+  };
+
+  const update = (key: keyof SettingsState) => (val: boolean) => {
+    persist({...settings, [key]: val});
   };
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex min-h-full flex-col">
       <PopupHeader />
-      
-      <div className="px-4 py-4 space-y-6">
+
+      <div className="space-y-6 px-4 py-4">
         <section>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">General</h3>
-          <ToggleRow 
-            label="Automatic Scans" 
-            description="Run a silent audit every time you visit a new domain."
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-zinc-900">General</h3>
+            <span className="text-xs font-medium text-emerald-700">{status}</span>
+          </div>
+          <ToggleRow
+            label="Scan on open"
+            description="Refresh findings when you open the popup."
             checked={settings.autoScan}
             onChange={update('autoScan')}
           />
-          <ToggleRow 
-            label="Visual Overlays" 
-            description="Show markers directly on page elements for detected risks."
+          <ToggleRow
+            label="Page preview"
+            description="Show findings in the preview screen."
             checked={settings.overlays}
             onChange={update('overlays')}
           />
         </section>
 
         <section>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Detection</h3>
-          <ToggleRow 
-            label="Source Maps" 
-            description="Deep scan accessible .map files for original source leaks."
+          <h3 className="mb-2 text-sm font-semibold text-zinc-900">Checks</h3>
+          <ToggleRow
+            label="Source Maps"
+            description="Look for source-map references."
             checked={settings.sourceMaps}
             onChange={update('sourceMaps')}
           />
-          <ToggleRow 
-            label="Bucket Discovery" 
-            description="Search for AWS, GCP, and Azure public storage references."
+          <ToggleRow
+            label="Bucket Discovery"
+            description="Look for public cloud storage links."
             checked={settings.buckets}
             onChange={update('buckets')}
           />
-          <ToggleRow 
-            label="Cloud Configs" 
-            description="Detect Firebase, Supabase, and custom config objects."
+          <ToggleRow
+            label="Cloud Configs"
+            description="Look for common public config markers."
             checked={settings.configs}
             onChange={update('configs')}
           />
-          <ToggleRow 
-            label="Low Confidence" 
-            description="Include heuristic matches that may require manual verification."
+          <ToggleRow
+            label="Low Confidence"
+            description="Include weaker matches."
             checked={settings.lowConfidence}
             onChange={update('lowConfidence')}
           />
         </section>
 
         <section className="pb-8">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-4">Account</h3>
-          <div className="bg-zinc-100 p-4 rounded-xl flex items-center justify-between">
+          <h3 className="mb-4 text-sm font-semibold text-zinc-900">Actions</h3>
+          <div className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-4">
             <div>
-              <p className="text-sm font-bold">Standard Account</p>
-              <p className="text-[11px] text-zinc-500">Free Tier (3 domains / day)</p>
+              <p className="text-sm font-semibold">Run a fresh scan</p>
+              <p className="text-xs text-zinc-500">Use these settings on the active tab.</p>
             </div>
-            <Button size="sm" variant="primary" className="h-8">Upgrade</Button>
+            <Button size="sm" variant="primary" className="h-8" onClick={() => void refreshScan()}>
+              Scan
+            </Button>
           </div>
         </section>
       </div>

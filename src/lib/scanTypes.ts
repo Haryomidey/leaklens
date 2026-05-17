@@ -35,9 +35,20 @@ export interface ScanResult {
   steps: ScanStep[];
 }
 
-export const emptyScanResult = (message = 'Open a web page and run a scan.'): ScanResult => ({
-  url: '',
-  hostname: 'No active page',
+function getHostname(url = '') {
+  try {
+    return new URL(url).hostname || 'Current page';
+  } catch {
+    return 'Current page';
+  }
+}
+
+export const emptyScanResult = (
+  message = 'Open a web page and run a scan.',
+  page: {url?: string; hostname?: string} = {},
+): ScanResult => ({
+  url: page.url ?? '',
+  hostname: page.hostname ?? (page.url ? getHostname(page.url) : 'No active page'),
   scannedAt: new Date().toISOString(),
   score: 0,
   findings: [],

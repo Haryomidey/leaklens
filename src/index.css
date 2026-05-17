@@ -1,21 +1,32 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
 
 @theme {
-  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: Poppins, ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 html,
 body,
 #root {
-  width: 100%;
-  min-width: 380px;
-  min-height: 600px;
+  width: 380px;
+  height: 540px;
+  max-width: 380px;
+  max-height: 540px;
   margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
+  font-family: Poppins, ui-sans-serif, system-ui, sans-serif;
   overflow: hidden;
+}
+
+#root {
+  display: flex;
+  position: fixed;
+  inset: 0;
 }
 
 .leaklens-scrollbar {

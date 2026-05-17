@@ -52,7 +52,7 @@ const router = createHashRouter([
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="h-full w-full overflow-hidden bg-zinc-50">
       <ScanProvider>
         <RouterProvider router={router} />
       </ScanProvider>
