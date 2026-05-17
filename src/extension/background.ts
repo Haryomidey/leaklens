@@ -1,9 +1,3 @@
-/**
- * LeakLens Background Service Worker
- * This script handles long-running tasks and inter-process communication
- * between the popup and content scripts.
- */
-
 chrome.runtime.onInstalled.addListener(() => {
   console.log('LeakLens extension installed');
 });
