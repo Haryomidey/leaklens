@@ -13,4 +13,8 @@ declare const chrome: {
       ): void;
     };
   };
+  tabs: {
+    query(queryInfo: {active?: boolean; currentWindow?: boolean}): Promise<Array<{id?: number; url?: string}>>;
+    sendMessage(tabId: number, message: {action: string; [key: string]: unknown}): Promise<any>;
+  };
 };

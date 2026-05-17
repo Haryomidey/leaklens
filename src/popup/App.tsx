@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import {createHashRouter, Outlet, RouterProvider} from 'react-router-dom';
 import {AppShell} from '../components/layout/AppShell';
 import Dashboard from '../pages/Dashboard';
@@ -12,6 +7,7 @@ import FindingDetail from '../pages/FindingDetail';
 import HeatmapPreview from '../pages/HeatmapPreview';
 import Settings from '../pages/Settings';
 import Report from '../pages/Report';
+import {ScanProvider} from './ScanContext';
 
 const router = createHashRouter([
   {
@@ -56,8 +52,10 @@ const router = createHashRouter([
 
 export default function App() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-900/10 p-4">
-      <RouterProvider router={router} />
+    <div className="min-h-screen bg-zinc-50">
+      <ScanProvider>
+        <RouterProvider router={router} />
+      </ScanProvider>
     </div>
   );
 }

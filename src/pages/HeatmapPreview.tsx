@@ -1,85 +1,66 @@
-import { PopupHeader } from '../components/layout/PopupHeader';
-import { Badge } from '../components/ui/Badge';
-import { Card } from '../components/ui/Card';
-import { motion } from 'motion/react';
-import { AlertTriangle, MapPin } from 'lucide-react';
+import {AlertTriangle, MapPin} from 'lucide-react';
+import {motion} from 'motion/react';
+import {PopupHeader} from '../components/layout/PopupHeader';
+import {Badge} from '../components/ui/Badge';
+import {useScan} from '../popup/ScanContext';
 
 export default function HeatmapPreview() {
+  const {result} = useScan();
+  const visibleFindings = result.findings.slice(0, 4);
+
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex min-h-full flex-col">
       <PopupHeader />
-      
-      <div className="flex-1 flex flex-col">
-        <div className="px-4 pt-4 pb-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-bold text-lg">Heatmap Preview</h2>
-            <Badge variant="low">Beta</Badge>
+
+      <div className="flex flex-1 flex-col">
+        <div className="px-4 pb-2 pt-4">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-bold">Heatmap Preview</h2>
+            <Badge variant="low">Live</Badge>
           </div>
         </div>
 
-        <div className="px-4 flex-1 relative bg-zinc-200">
-          {/* Mock Browser UI */}
-          <div className="absolute inset-0 bg-white shadow-inner flex flex-col">
-            <div className="h-4 bg-zinc-100 border-b border-zinc-200 flex items-center px-2 gap-1">
-              <div className="w-1 h-1 rounded-full bg-red-400" />
-              <div className="w-1 h-1 rounded-full bg-yellow-400" />
-              <div className="w-1 h-1 rounded-full bg-green-400" />
-            </div>
-            
-            <div className="p-4 space-y-4">
-              <div className="h-20 bg-zinc-50 rounded-lg border-2 border-red-500 border-dashed relative">
-                <motion.div 
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-3 -right-3 bg-red-500 text-white p-1 rounded-full shadow-lg"
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                </motion.div>
-                <div className="p-2">
-                  <div className="h-2 w-1/2 bg-zinc-200 rounded mb-2" />
-                  <div className="h-2 w-full bg-zinc-100 rounded" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="h-32 bg-zinc-50 rounded-lg border-2 border-orange-400 border-dashed relative">
-                  <motion.div 
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="absolute -top-3 -right-3 bg-orange-400 text-white p-1 rounded-full shadow-lg"
-                  >
-                    <AlertTriangle className="w-4 h-4" />
-                  </motion.div>
-                </div>
-                <div className="h-32 bg-zinc-50 rounded-lg" />
-              </div>
-
-              <div className="h-10 bg-zinc-900 rounded-lg relative">
-                <motion.div 
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="absolute -top-3 -right-3 bg-red-500 text-white p-1 rounded-full shadow-lg"
-                >
-                  <MapPin className="w-4 h-4" />
-                </motion.div>
-              </div>
-            </div>
+        <div className="relative mx-4 min-h-65 flex-1 overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+          <div className="flex h-7 items-center gap-2 border-b border-zinc-100 bg-zinc-50 px-3">
+            <MapPin className="h-3.5 w-3.5 text-zinc-400" />
+            <span className="truncate text-[11px] font-medium text-zinc-500">{result.url || result.hostname}</span>
           </div>
 
-          <div className="absolute inset-0 bg-zinc-900/5 backdrop-blur-[1px] pointer-events-none" />
+          <div className="space-y-3 p-4">
+            {visibleFindings.length > 0 ? (
+              visibleFindings.map((finding, index) => (
+                <motion.div
+                  key={finding.id}
+                  initial={{opacity: 0, scale: 0.96}}
+                  animate={{opacity: 1, scale: 1}}
+                  transition={{delay: index * 0.08}}
+                  className="relative rounded-xl border-2 border-dashed border-orange-300 bg-orange-50/50 p-3"
+                >
+                  <div className="absolute -right-2 -top-2 rounded-full bg-orange-500 p-1 text-white shadow-lg">
+                    <AlertTriangle className="h-4 w-4" />
+                  </div>
+                  <Badge variant={finding.severity}>{finding.severity}</Badge>
+                  <p className="mt-2 truncate text-sm font-bold">{finding.title}</p>
+                  <p className="truncate font-mono text-[10px] text-zinc-500">{finding.path}</p>
+                </motion.div>
+              ))
+            ) : (
+              <div className="flex h-48 items-center justify-center text-center text-sm font-medium text-zinc-500">
+                No risky page regions were detected in the latest scan.
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="p-4 bg-white border-t border-zinc-100">
-          <p className="text-[11px] text-zinc-500 leading-tight mb-2">
-            The heatmap overlay highlights elements containing detected secrets or risky configurations directly on the webpage.
+        <div className="border-t border-zinc-100 bg-white p-4">
+          <p className="mb-2 text-[11px] leading-tight text-zinc-500">
+            Live scan findings are grouped by detected page evidence so you can jump from issue detail to affected asset.
           </p>
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-red-500" />
-            <span className="text-[10px] font-bold text-zinc-600 uppercase">Critical Secret</span>
-            <span className="w-2 h-2 rounded-full bg-orange-400 ml-2" />
-            <span className="text-[10px] font-bold text-zinc-600 uppercase">Risk Area</span>
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            <span className="text-[10px] font-bold uppercase text-zinc-600">Critical</span>
+            <span className="ml-2 h-2 w-2 rounded-full bg-orange-400" />
+            <span className="text-[10px] font-bold uppercase text-zinc-600">Risk Area</span>
           </div>
         </div>
       </div>

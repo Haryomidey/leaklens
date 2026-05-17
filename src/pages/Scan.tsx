@@ -1,54 +1,62 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { PopupHeader } from '../components/layout/PopupHeader';
-import { ScanStepRow } from '../components/findings/FindingsAndScan';
-import { mockScanSteps } from '../data/mockScanSteps';
-import { Button } from '../components/ui/Button';
-import { Loader2 } from 'lucide-react';
-import { motion } from 'motion/react';
+import {useEffect, useState} from 'react';
+import {useNavigate} from 'react-router-dom';
+import {Loader2} from 'lucide-react';
+import {PopupHeader} from '../components/layout/PopupHeader';
+import {ScanStepRow} from '../components/findings/FindingsAndScan';
+import {Button} from '../components/ui/Button';
+import {useScan} from '../popup/ScanContext';
 
 export default function Scan() {
   const navigate = useNavigate();
   const [progress, setProgress] = useState(0);
+  const {error, isScanning, refreshScan, result} = useScan();
+
+  useEffect(() => {
+    setProgress(0);
+    void refreshScan();
+  }, [refreshScan]);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setProgress(prev => (prev < 100 ? prev + 1 : 100));
-    }, 50);
+      setProgress(prev => (isScanning ? Math.min(prev + 8, 92) : 100));
+    }, 80);
+
     return () => clearInterval(timer);
-  }, []);
+  }, [isScanning]);
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex min-h-full flex-col">
       <PopupHeader />
-      
+
       <div className="px-4 py-6 text-center">
-        <div className="mb-6 relative inline-flex items-center justify-center">
-          <Loader2 className="w-16 h-16 text-zinc-200 animate-spin" strokeWidth={1} />
+        <div className="relative mb-6 inline-flex items-center justify-center">
+          <Loader2 className="h-16 w-16 animate-spin text-zinc-200" strokeWidth={1} />
           <div className="absolute inset-0 flex items-center justify-center">
             <span className="text-xl font-black tracking-tighter">{progress}%</span>
           </div>
         </div>
-        <h2 className="font-bold text-lg mb-1">Scanning example.com</h2>
-        <p className="text-sm text-zinc-500">Auditing client-side assets for vulnerabilities...</p>
+        <h2 className="mb-1 text-lg font-bold">Scanning {result.hostname}</h2>
+        <p className="text-sm text-zinc-500">
+          {error ?? 'Auditing client-side assets for vulnerabilities...'}
+        </p>
       </div>
 
       <div className="flex-1 px-4 pb-4">
-        <div className="bg-white border border-zinc-100 rounded-2xl overflow-hidden shadow-sm">
-          {mockScanSteps.map(step => (
+        <div className="overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm">
+          {result.steps.map(step => (
             <ScanStepRow key={step.id} step={step} />
           ))}
         </div>
       </div>
 
-      <div className="p-4 bg-white border-t border-zinc-100">
-        <Button 
-          variant="outline" 
-          className="w-full" 
+      <div className="border-t border-zinc-100 bg-white p-4">
+        <Button
+          variant="outline"
+          className="w-full"
           onClick={() => navigate('/')}
-          disabled={progress < 100}
+          disabled={isScanning || progress < 100}
         >
-          {progress < 100 ? 'Cancel Scan' : 'View Results'}
+          {isScanning || progress < 100 ? 'Scanning...' : 'View Results'}
         </Button>
       </div>
     </div>

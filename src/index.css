@@ -10,6 +10,33 @@ body,
 #root {
   width: 100%;
   min-width: 380px;
-  min-height: 500px;
+  min-height: 600px;
   margin: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+.leaklens-scrollbar {
+  scrollbar-color: #a1a1aa transparent;
+  scrollbar-width: thin;
+}
+
+.leaklens-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.leaklens-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.leaklens-scrollbar::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border: 2px solid #fafafa;
+  border-radius: 999px;
+}
+
+.leaklens-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #a1a1aa;
 }

@@ -1,4 +1,4 @@
-import { Finding } from '../../data/mockFindings';
+import {Finding, ScanStep} from '../../lib/scanTypes';
 import { Badge } from '../ui/Badge';
 import { Card } from '../ui/Card';
 import { ChevronRight, AlertCircle } from 'lucide-react';
@@ -35,7 +35,7 @@ export function FindingCard({ finding }: { finding: Finding }) {
   );
 }
 
-export function ScanStepRow({ step }: { step: any }) {
+export function ScanStepRow({ step }: { step: ScanStep }) {
   const icons = {
     pending: <div className="w-2 h-2 rounded-full bg-zinc-200" />,
     scanning: <AlertCircle className="w-5 h-5 text-blue-500 animate-spin" />,
