@@ -54,13 +54,12 @@ export const emptyScanResult = (
   findings: [],
   stats: [
     {id: 'secrets', label: 'Secrets Found', value: 0},
-    {id: 'routes', label: 'Exposed Routes', value: 0},
-    {id: 'sourcemaps', label: 'Source Maps', value: 0},
+    {id: 'exposure', label: 'Exposures', value: 0},
+    {id: 'other', label: 'Other Issues', value: 0},
   ],
   steps: [
     {id: 'scripts', name: 'Script Analysis', status: 'pending', description: message},
     {id: 'secrets', name: 'Secret Detection', status: 'pending', description: message},
-    {id: 'routes', name: 'Route Inspection', status: 'pending', description: message},
-    {id: 'storage', name: 'Storage References', status: 'pending', description: message},
+    {id: 'storage', name: 'Exposure Checks', status: 'pending', description: message},
   ],
 });

@@ -50,7 +50,7 @@ export default function Dashboard() {
               title={error ? 'Could not scan this tab' : 'No issues found'}
               description={error ?? 'Nothing obvious showed up on this page. You can scan again after the page changes.'}
               actionLabel="Scan again"
-              onAction={() => void refreshScan()}
+              onAction={() => navigate('/scan')}
             />
           )}
         </div>

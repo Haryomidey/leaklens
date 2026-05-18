@@ -41,6 +41,9 @@ export default function Settings() {
   const update = (key: keyof SettingsState) => (val: boolean) => {
     persist({...settings, [key]: val});
   };
+  const updateValue = <Key extends keyof SettingsState>(key: Key, value: SettingsState[Key]) => {
+    persist({...settings, [key]: value});
+  };
 
   return (
     <div className="flex min-h-full flex-col">
@@ -67,7 +70,68 @@ export default function Settings() {
         </section>
 
         <section>
+          <h3 className="mb-2 text-sm font-semibold text-zinc-900">Scan mode</h3>
+          <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-200 bg-white p-2">
+            <Button
+              size="sm"
+              variant={settings.severityMode === 'serious' ? 'primary' : 'ghost'}
+              onClick={() => updateValue('severityMode', 'serious')}
+            >
+              Serious only
+            </Button>
+            <Button
+              size="sm"
+              variant={settings.severityMode === 'audit' ? 'primary' : 'ghost'}
+              onClick={() => updateValue('severityMode', 'audit')}
+            >
+              Audit mode
+            </Button>
+          </div>
+        </section>
+
+        <section>
+          <h3 className="mb-2 text-sm font-semibold text-zinc-900">Auth profile</h3>
+          <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-200 bg-white p-2">
+            <Button
+              size="sm"
+              variant={settings.authProfile === 'currentSession' ? 'primary' : 'ghost'}
+              onClick={() => updateValue('authProfile', 'currentSession')}
+            >
+              Current session
+            </Button>
+            <Button
+              size="sm"
+              variant={settings.authProfile === 'anonymous' ? 'primary' : 'ghost'}
+              onClick={() => updateValue('authProfile', 'anonymous')}
+            >
+              Anonymous
+            </Button>
+          </div>
+          <p className="mt-2 text-xs leading-snug text-zinc-500">
+            Current session uses the active browser cookies for verification requests.
+          </p>
+        </section>
+
+        <section>
           <h3 className="mb-2 text-sm font-semibold text-zinc-900">Checks</h3>
+          <ToggleRow
+            label="Active endpoint verification"
+            description="Probe discovered same-origin endpoints for reachable sensitive paths."
+            checked={settings.activeVerification}
+            onChange={update('activeVerification')}
+          />
+          <ToggleRow
+            label="JS bundle parsing"
+            description="Extract endpoints and indicators from downloaded same-origin bundles."
+            checked={settings.bundleAnalysis}
+            onChange={update('bundleAnalysis')}
+          />
+          <ToggleRow
+            label="Dependency CVEs"
+            description="Fingerprint frontend libraries and match known vulnerable versions."
+            checked={settings.dependencyCves}
+            onChange={update('dependencyCves')}
+          />
           <ToggleRow
             label="Source Maps"
             description="Look for source-map references."

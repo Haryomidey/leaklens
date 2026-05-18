@@ -24,7 +24,7 @@
     "type": "module"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; object-src 'self';"
+    "extension_pages": "script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'self';"
   },
   "content_scripts": [
     {

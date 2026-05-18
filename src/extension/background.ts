@@ -1,5 +1,23 @@
 import {Finding} from '../lib/scanTypes';
 
+type ScanSettings = {
+  activeVerification?: boolean;
+  authProfile?: 'anonymous' | 'currentSession';
+  bundleAnalysis?: boolean;
+  dependencyCves?: boolean;
+  severityMode?: 'serious' | 'audit';
+  sourceMaps?: boolean;
+};
+
+type VulnerableLibrary = {
+  cves: string[];
+  fixedIn: string;
+  name: string;
+  range: (version: string) => boolean;
+  recommendation: string;
+  severity: 'critical' | 'high' | 'medium';
+};
+
 const exposedFileChecks = [
   {
     path: '/.env',
@@ -10,6 +28,12 @@ const exposedFileChecks = [
   {
     path: '/.git/config',
     title: 'Public Git Config',
+    severity: 'high' as const,
+    recommendation: 'Block access to .git paths and review the repository for exposed history or credentials.',
+  },
+  {
+    path: '/.git/HEAD',
+    title: 'Public Git Repository Metadata',
     severity: 'high' as const,
     recommendation: 'Block access to .git paths and review the repository for exposed history or credentials.',
   },
@@ -50,10 +74,34 @@ const exposedFileChecks = [
     recommendation: 'Remove the file from public hosting and rotate any registry tokens that were exposed.',
   },
   {
+    path: '/.env.local',
+    title: 'Public Local Environment File',
+    severity: 'critical' as const,
+    recommendation: 'Remove the file from public hosting and rotate any values that were exposed.',
+  },
+  {
+    path: '/.env.production',
+    title: 'Public Production Environment File',
+    severity: 'critical' as const,
+    recommendation: 'Remove the file from public hosting and rotate any values that were exposed.',
+  },
+  {
     path: '/backup.zip',
     title: 'Public Backup Archive',
     severity: 'high' as const,
     recommendation: 'Remove public backup archives and review them for leaked source code or credentials.',
+  },
+  {
+    path: '/backup.sql',
+    title: 'Public Database Backup',
+    severity: 'critical' as const,
+    recommendation: 'Remove public database backups and rotate any exposed credentials or user secrets.',
+  },
+  {
+    path: '/dump.sql',
+    title: 'Public Database Dump',
+    severity: 'critical' as const,
+    recommendation: 'Remove public database dumps and rotate any exposed credentials or user secrets.',
   },
 ];
 
@@ -64,6 +112,47 @@ const bundleSecretPatterns = [
 ];
 
 const sensitiveBundleRouteRegex = /\/(?:admin|debug|internal|devtools|staging|graphql|api\/debug)[A-Za-z0-9/_-]*/gi;
+const endpointPathRegex = /\/(?:api|admin|graphql|debug|internal|devtools|staging|v\d+)[A-Za-z0-9/?&=._~:%#-]*/gi;
+const libraryVersionRegexes = [
+  {name: 'jquery', regex: /jquery(?:\.min)?[-.]([0-9]+\.[0-9]+\.[0-9]+)|jQuery v([0-9]+\.[0-9]+\.[0-9]+)/i},
+  {name: 'lodash', regex: /lodash(?:\.min)?[-.]([0-9]+\.[0-9]+\.[0-9]+)|lodash v?([0-9]+\.[0-9]+\.[0-9]+)/i},
+  {name: 'bootstrap', regex: /bootstrap(?:\.bundle|\.min)?[-.]([0-9]+\.[0-9]+\.[0-9]+)|Bootstrap v([0-9]+\.[0-9]+\.[0-9]+)/i},
+  {name: 'angular', regex: /angular(?:\.min)?[-.]([0-9]+\.[0-9]+\.[0-9]+)|AngularJS v([0-9]+\.[0-9]+\.[0-9]+)/i},
+];
+const vulnerableLibraries: VulnerableLibrary[] = [
+  {
+    name: 'jquery',
+    cves: ['CVE-2020-11022', 'CVE-2020-11023'],
+    fixedIn: '3.5.0',
+    range: version => compareVersions(version, '3.5.0') < 0,
+    recommendation: 'Upgrade jQuery to 3.5.0 or newer and retest plugins that process HTML.',
+    severity: 'high',
+  },
+  {
+    name: 'lodash',
+    cves: ['CVE-2019-10744', 'CVE-2020-8203', 'CVE-2021-23337'],
+    fixedIn: '4.17.21',
+    range: version => compareVersions(version, '4.17.21') < 0,
+    recommendation: 'Upgrade lodash to 4.17.21 or newer.',
+    severity: 'high',
+  },
+  {
+    name: 'bootstrap',
+    cves: ['CVE-2019-8331'],
+    fixedIn: '3.4.1 / 4.3.1',
+    range: version => compareVersions(version, '3.4.1') < 0 || (version.startsWith('4.') && compareVersions(version, '4.3.1') < 0),
+    recommendation: 'Upgrade Bootstrap to a patched release and review tooltip/popover sanitization.',
+    severity: 'medium',
+  },
+  {
+    name: 'angular',
+    cves: ['AngularJS EOL'],
+    fixedIn: 'Not applicable',
+    range: version => version.startsWith('1.'),
+    recommendation: 'AngularJS is end-of-life. Migrate or isolate the app behind strong controls.',
+    severity: 'high',
+  },
+];
 
 function makeFinding(findings: Finding[], data: Omit<Finding, 'id'>) {
   findings.push({
@@ -77,17 +166,56 @@ function truncate(value: string) {
   return compact.length > 160 ? `${compact.slice(0, 160)}...` : compact;
 }
 
+function compareVersions(left: string, right: string) {
+  const a = left.split('.').map(part => Number.parseInt(part, 10) || 0);
+  const b = right.split('.').map(part => Number.parseInt(part, 10) || 0);
+
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const diff = (a[index] ?? 0) - (b[index] ?? 0);
+    if (diff !== 0) return diff;
+  }
+
+  return 0;
+}
+
+function requestCredentials(settings?: ScanSettings): RequestCredentials {
+  return settings?.authProfile === 'anonymous' ? 'omit' : 'include';
+}
+
 function headerValue(headers: Headers, name: string) {
   return headers.get(name) ?? headers.get(name.toLowerCase());
 }
 
-async function fetchWithTimeout(url: string, options: RequestInit = {}) {
+function cspDirective(csp: string, name: string) {
+  const directive = csp
+    .split(';')
+    .map(part => part.trim())
+    .find(part => part.toLowerCase().startsWith(`${name.toLowerCase()} `));
+
+  return directive?.slice(name.length).trim() ?? '';
+}
+
+function hasLooseScriptPolicy(csp: string) {
+  const scriptPolicy = cspDirective(csp, 'script-src') || cspDirective(csp, 'default-src');
+  if (!scriptPolicy) return false;
+
+  const hasNonceOrHash = /'(?:nonce-[^']+|sha(?:256|384|512)-[^']+)'/i.test(scriptPolicy);
+  const hasStrictDynamic = /'strict-dynamic'/i.test(scriptPolicy);
+
+  return (
+    /'unsafe-eval'|\s\*\s|\s\*:|^(\*|\*:)/i.test(` ${scriptPolicy} `) ||
+    (/'unsafe-inline'/i.test(scriptPolicy) && !hasNonceOrHash && !hasStrictDynamic)
+  );
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit = {}, settings?: ScanSettings) {
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), 3500);
 
   try {
     return await fetch(url, {
       cache: 'no-store',
+      credentials: requestCredentials(settings),
       redirect: 'follow',
       ...options,
       signal: controller.signal,
@@ -97,86 +225,21 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}) {
   }
 }
 
-async function detectResponseHeaders(url: string, findings: Finding[]) {
-  const response = await fetchWithTimeout(url, {method: 'HEAD'});
+async function detectResponseHeaders(url: string, findings: Finding[], settings?: ScanSettings) {
+  const response = await fetchWithTimeout(url, {method: 'HEAD'}, settings);
   const headers = response.headers;
-  const pageUrl = new URL(url);
-
-  if (pageUrl.protocol === 'https:' && !headerValue(headers, 'strict-transport-security')) {
-    makeFinding(findings, {
-      severity: 'medium',
-      category: 'Headers',
-      title: 'Missing HSTS Header',
-      path: url,
-      explanation: 'The page response did not include Strict-Transport-Security.',
-      confidence: 72,
-      evidence: 'Strict-Transport-Security header not found',
-      recommendation: 'Set Strict-Transport-Security on HTTPS responses after confirming the whole site supports HTTPS.',
-    });
-  }
 
   const csp = headerValue(headers, 'content-security-policy');
-  if (!csp) {
-    makeFinding(findings, {
-      severity: 'medium',
-      category: 'Headers',
-      title: 'Missing CSP Header',
-      path: url,
-      explanation: 'The response did not include a Content-Security-Policy header.',
-      confidence: 78,
-      evidence: 'Content-Security-Policy header not found',
-      recommendation: 'Add a restrictive Content-Security-Policy header and avoid unsafe-inline where possible.',
-    });
-  } else if (/unsafe-inline|unsafe-eval|\*/i.test(csp)) {
+  if (csp && hasLooseScriptPolicy(csp)) {
     makeFinding(findings, {
       severity: 'medium',
       category: 'Headers',
       title: 'Loose CSP Header',
       path: url,
-      explanation: 'The Content Security Policy includes a broad or unsafe directive.',
+      explanation: 'The Content Security Policy allows broad or unsafe script execution.',
       confidence: 76,
       evidence: csp.slice(0, 160),
-      recommendation: 'Tighten script-src/style-src directives and avoid unsafe-inline, unsafe-eval, and broad wildcards.',
-    });
-  }
-
-  if (!headerValue(headers, 'x-content-type-options')) {
-    makeFinding(findings, {
-      severity: 'low',
-      category: 'Headers',
-      title: 'Missing X-Content-Type-Options',
-      path: url,
-      explanation: 'The response did not include X-Content-Type-Options.',
-      confidence: 70,
-      evidence: 'X-Content-Type-Options header not found',
-      recommendation: 'Set X-Content-Type-Options: nosniff on document and asset responses.',
-    });
-  }
-
-  if (!headerValue(headers, 'referrer-policy')) {
-    makeFinding(findings, {
-      severity: 'low',
-      category: 'Headers',
-      title: 'Missing Referrer-Policy Header',
-      path: url,
-      explanation: 'The response did not include Referrer-Policy.',
-      confidence: 70,
-      evidence: 'Referrer-Policy header not found',
-      recommendation: 'Set Referrer-Policy, such as strict-origin-when-cross-origin.',
-    });
-  }
-
-  const frameAncestors = csp?.match(/frame-ancestors\s+([^;]+)/i)?.[1];
-  if (!headerValue(headers, 'x-frame-options') && !frameAncestors) {
-    makeFinding(findings, {
-      severity: 'low',
-      category: 'Headers',
-      title: 'No Clickjacking Protection Header',
-      path: url,
-      explanation: 'The response did not include X-Frame-Options or a CSP frame-ancestors directive.',
-      confidence: 66,
-      evidence: 'X-Frame-Options and frame-ancestors not found',
-      recommendation: 'Use CSP frame-ancestors or X-Frame-Options to restrict framing.',
+      recommendation: 'Tighten script-src/default-src directives and avoid unsafe-inline, unsafe-eval, and broad wildcards.',
     });
   }
 
@@ -193,28 +256,17 @@ async function detectResponseHeaders(url: string, findings: Finding[]) {
       evidence: 'Access-Control-Allow-Origin: *; Access-Control-Allow-Credentials: true',
       recommendation: 'Do not combine wildcard origins with credentials. Allow only trusted origins.',
     });
-  } else if (acao === '*') {
-    makeFinding(findings, {
-      severity: 'low',
-      category: 'CORS',
-      title: 'Wildcard CORS Origin',
-      path: url,
-      explanation: 'The response allows requests from any origin.',
-      confidence: 62,
-      evidence: 'Access-Control-Allow-Origin: *',
-      recommendation: 'Use a specific allowlist for APIs that expose non-public data.',
-    });
   }
 }
 
-async function detectExposedFiles(url: string, findings: Finding[]) {
+async function detectExposedFiles(url: string, findings: Finding[], settings?: ScanSettings) {
   const origin = new URL(url).origin;
 
   await Promise.all(exposedFileChecks.map(async check => {
     const target = `${origin}${check.path}`;
 
     try {
-      const response = await fetchWithTimeout(target, {method: 'GET', headers: {Range: 'bytes=0-2048'}});
+      const response = await fetchWithTimeout(target, {method: 'GET', headers: {Range: 'bytes=0-2048'}}, settings);
       if (!response.ok) return;
 
       const contentType = response.headers.get('content-type') ?? '';
@@ -254,7 +306,74 @@ function resolveSourceMapUrl(scriptUrl: string, mapRef: string) {
   }
 }
 
-async function detectJavascriptBundles(pageUrl: string, assetUrls: string[], findings: Finding[], settings?: {sourceMaps?: boolean}) {
+function isSensitiveEndpointPath(pathname: string) {
+  return /\/(?:api|admin|graphql|debug|internal|devtools|staging|v\d+)/i.test(pathname);
+}
+
+function extractJsStrings(text: string) {
+  const strings: string[] = [];
+  const stringRegex = /(['"`])((?:\\.|(?!\1)[^\\]){2,240})\1/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = stringRegex.exec(text))) {
+    strings.push(match[2].replace(/\\\//g, '/'));
+    if (strings.length >= 400) break;
+  }
+
+  return strings;
+}
+
+function fingerprintLibraries(source: string, path: string) {
+  return libraryVersionRegexes.flatMap(library => {
+    const match = `${path}\n${source.slice(0, 20000)}`.match(library.regex);
+    const version = match?.[1] || match?.[2];
+    return version ? [{name: library.name, version}] : [];
+  });
+}
+
+function detectVulnerableLibraries(source: string, path: string, findings: Finding[]) {
+  for (const library of fingerprintLibraries(source, path)) {
+    for (const vulnerability of vulnerableLibraries) {
+      if (library.name !== vulnerability.name || !vulnerability.range(library.version)) continue;
+
+      makeFinding(findings, {
+        severity: vulnerability.severity,
+        category: 'Dependencies',
+        title: `Known Vulnerable ${library.name} Version`,
+        path,
+        explanation: `${library.name} ${library.version} matches known vulnerable dependency advisories.`,
+        confidence: 84,
+        evidence: `${library.name} ${library.version}; ${vulnerability.cves.join(', ')}; fixed in ${vulnerability.fixedIn}`,
+        recommendation: vulnerability.recommendation,
+      });
+    }
+  }
+}
+
+function collectBundleEndpoints(text: string, scriptUrl: string) {
+  const fromStrings = extractJsStrings(text)
+    .filter(value => /^(?:https?:\/\/|\/)(?:api|admin|graphql|debug|internal|devtools|staging|v\d+|[A-Za-z0-9_-]+\/(?:api|graphql))/i.test(value))
+    .map(value => {
+      try {
+        return new URL(value, scriptUrl).href;
+      } catch {
+        return '';
+      }
+    });
+
+  const fromRegex = Array.from(new Set(text.match(endpointPathRegex) ?? []))
+    .map(value => {
+      try {
+        return new URL(value, scriptUrl).href;
+      } catch {
+        return '';
+      }
+    });
+
+  return Array.from(new Set([...fromStrings, ...fromRegex].filter(Boolean))).slice(0, 30);
+}
+
+async function detectJavascriptBundles(pageUrl: string, assetUrls: string[], findings: Finding[], settings?: ScanSettings) {
   const origin = new URL(pageUrl).origin;
   const scripts = assetUrls
     .filter(url => /\.m?js(?:[?#].*)?$/i.test(url))
@@ -263,38 +382,44 @@ async function detectJavascriptBundles(pageUrl: string, assetUrls: string[], fin
 
   await Promise.all(scripts.map(async scriptUrl => {
     try {
-      const response = await fetchWithTimeout(scriptUrl);
+      const response = await fetchWithTimeout(scriptUrl, {}, settings);
       if (!response.ok) return;
 
       const text = await response.text();
-      for (const pattern of bundleSecretPatterns) {
-        const matches = Array.from(new Set(text.match(pattern.regex) ?? [])).slice(0, 3);
-        for (const match of matches) {
+      if (settings?.bundleAnalysis !== false) {
+        for (const pattern of bundleSecretPatterns) {
+          const matches = Array.from(new Set(text.match(pattern.regex) ?? [])).slice(0, 3);
+          for (const match of matches) {
+            makeFinding(findings, {
+              severity: pattern.title.includes('JWT') ? 'high' : 'critical',
+              category: 'Bundle',
+              title: pattern.title,
+              path: scriptUrl,
+              explanation: 'A same-origin JavaScript bundle contains a token or secret-like value.',
+              confidence: 84,
+              evidence: truncate(match),
+              recommendation: 'Remove secrets from frontend bundles and rotate exposed credentials if this is a real value.',
+            });
+          }
+        }
+
+        const routes = Array.from(new Set(text.match(sensitiveBundleRouteRegex) ?? [])).slice(0, 6);
+        for (const route of routes) {
           makeFinding(findings, {
-            severity: pattern.title.includes('JWT') ? 'high' : 'critical',
+            severity: /debug|internal|devtools/i.test(route) ? 'high' : 'medium',
             category: 'Bundle',
-            title: pattern.title,
+            title: 'Sensitive Route in JS Bundle',
             path: scriptUrl,
-            explanation: 'A same-origin JavaScript bundle contains a token or secret-like value.',
-            confidence: 84,
-            evidence: truncate(match),
-            recommendation: 'Remove secrets from frontend bundles and rotate exposed credentials if this is a real value.',
+            explanation: 'A same-origin JavaScript bundle references a sensitive-looking route.',
+            confidence: 76,
+            evidence: route,
+            recommendation: 'Confirm sensitive routes are protected server-side and keep debug routes out of production bundles.',
           });
         }
       }
 
-      const routes = Array.from(new Set(text.match(sensitiveBundleRouteRegex) ?? [])).slice(0, 6);
-      for (const route of routes) {
-        makeFinding(findings, {
-          severity: /debug|internal|devtools/i.test(route) ? 'high' : 'medium',
-          category: 'Bundle',
-          title: 'Sensitive Route in JS Bundle',
-          path: scriptUrl,
-          explanation: 'A same-origin JavaScript bundle references a sensitive-looking route.',
-          confidence: 76,
-          evidence: route,
-          recommendation: 'Confirm sensitive routes are protected server-side and keep debug routes out of production bundles.',
-        });
+      if (settings?.dependencyCves !== false) {
+        detectVulnerableLibraries(text, scriptUrl, findings);
       }
 
       if (settings?.sourceMaps === false) return;
@@ -303,7 +428,7 @@ async function detectJavascriptBundles(pageUrl: string, assetUrls: string[], fin
       const mapUrl = mapRef ? resolveSourceMapUrl(scriptUrl, mapRef) : `${scriptUrl}.map`;
       if (!mapUrl || !isSameOrigin(mapUrl, origin)) return;
 
-      const mapResponse = await fetchWithTimeout(mapUrl, {headers: {Range: 'bytes=0-2048'}});
+      const mapResponse = await fetchWithTimeout(mapUrl, {headers: {Range: 'bytes=0-2048'}}, settings);
       if (!mapResponse.ok) return;
 
       const mapText = await mapResponse.text();
@@ -325,6 +450,77 @@ async function detectJavascriptBundles(pageUrl: string, assetUrls: string[], fin
   }));
 }
 
+async function verifyDiscoveredEndpoints(pageUrl: string, discoveredUrls: string[], assetUrls: string[], findings: Finding[], settings?: ScanSettings) {
+  if (settings?.activeVerification === false) return;
+
+  const origin = new URL(pageUrl).origin;
+  const candidateUrls = [
+    ...discoveredUrls,
+    ...assetUrls,
+  ]
+    .flatMap(url => {
+      try {
+        return [new URL(url, pageUrl).href];
+      } catch {
+        return [];
+      }
+    })
+    .filter(url => {
+      const parsed = new URL(url);
+      return parsed.origin === origin && isSensitiveEndpointPath(parsed.pathname);
+    });
+
+  const bundleEndpointCandidates = assetUrls.filter(url => /\.m?js(?:[?#].*)?$/i.test(url)).slice(0, 5);
+  for (const scriptUrl of bundleEndpointCandidates) {
+    try {
+      const response = await fetchWithTimeout(scriptUrl, {}, settings);
+      if (!response.ok) continue;
+      candidateUrls.push(...collectBundleEndpoints(await response.text(), scriptUrl));
+    } catch {
+      // Endpoint extraction is best-effort.
+    }
+  }
+
+  const targets = Array.from(new Set(candidateUrls))
+    .filter(url => {
+      try {
+        const parsed = new URL(url);
+        return parsed.origin === origin && !/\.(?:js|css|png|jpe?g|gif|svg|webp|woff2?|map)(?:[?#].*)?$/i.test(parsed.pathname);
+      } catch {
+        return false;
+      }
+    })
+    .slice(0, 16);
+
+  await Promise.all(targets.map(async target => {
+    try {
+      const response = await fetchWithTimeout(target, {method: 'GET', headers: {Range: 'bytes=0-2048'}}, settings);
+      if ([401, 403, 404, 405].includes(response.status)) return;
+
+      const contentType = response.headers.get('content-type') ?? '';
+      const text = await response.text();
+      const looksLikeHtmlShell = /text\/html/i.test(contentType) && /<html|<!doctype/i.test(text) && !/\/(?:api|graphql|debug|internal|admin)/i.test(target);
+      if (looksLikeHtmlShell) return;
+
+      const sensitiveStatus = response.ok || response.status >= 500;
+      if (!sensitiveStatus) return;
+
+      makeFinding(findings, {
+        severity: /\/(?:admin|debug|internal|devtools)/i.test(target) ? 'high' : 'medium',
+        category: 'API',
+        title: 'Reachable Sensitive Endpoint',
+        path: target,
+        explanation: 'A sensitive-looking endpoint discovered from the page or JavaScript bundle responded to an active verification request.',
+        confidence: 82,
+        evidence: truncate(`${response.status} ${response.statusText}; ${text.slice(0, 120)}`),
+        recommendation: 'Confirm this endpoint requires authorization and does not expose sensitive data to unintended users.',
+      });
+    } catch {
+      // Active endpoint verification is best-effort.
+    }
+  }));
+}
+
 async function detectCookieIssues(url: string, findings: Finding[]) {
   if (typeof chrome === 'undefined' || !chrome.cookies?.getAll) return;
 
@@ -335,16 +531,16 @@ async function detectCookieIssues(url: string, findings: Finding[]) {
   for (const cookie of cookies.slice(0, 40)) {
     const isSensitive = sensitiveCookieName.test(cookie.name);
 
-    if (pageUrl.protocol === 'https:' && !cookie.secure) {
+    if (isSensitive && pageUrl.protocol === 'https:' && !cookie.secure) {
       makeFinding(findings, {
-        severity: isSensitive ? 'high' : 'medium',
+        severity: 'high',
         category: 'Cookies',
-        title: 'Cookie Missing Secure Flag',
+        title: 'Sensitive Cookie Missing Secure Flag',
         path: `${cookie.domain}${cookie.path}`,
-        explanation: 'A cookie available on an HTTPS site is not marked Secure.',
+        explanation: 'A session, auth, or token-like cookie available on an HTTPS site is not marked Secure.',
         confidence: 82,
         evidence: cookie.name,
-        recommendation: 'Set the Secure flag on cookies used by HTTPS pages.',
+        recommendation: 'Set the Secure flag on authentication and session cookies used by HTTPS pages.',
       });
     }
 
@@ -361,32 +557,68 @@ async function detectCookieIssues(url: string, findings: Finding[]) {
       });
     }
 
-    if (cookie.sameSite === 'no_restriction' && !cookie.secure) {
+    if (isSensitive && cookie.sameSite === 'no_restriction' && !cookie.secure) {
       makeFinding(findings, {
-        severity: 'medium',
+        severity: 'high',
         category: 'Cookies',
-        title: 'SameSite=None Cookie Without Secure',
+        title: 'Sensitive SameSite=None Cookie Without Secure',
         path: `${cookie.domain}${cookie.path}`,
-        explanation: 'A SameSite=None cookie should also be marked Secure.',
+        explanation: 'A sensitive SameSite=None cookie should also be marked Secure.',
         confidence: 80,
         evidence: cookie.name,
-        recommendation: 'Set Secure on SameSite=None cookies or use Lax/Strict when cross-site use is not needed.',
+        recommendation: 'Set Secure on sensitive SameSite=None cookies or use Lax/Strict when cross-site use is not needed.',
       });
     }
   }
 }
 
-async function runNetworkScan(url: string, assetUrls: string[] = [], settings?: {sourceMaps?: boolean}) {
+async function detectGraphqlIntrospection(url: string, findings: Finding[], settings?: ScanSettings) {
+  const origin = new URL(url).origin;
+  const target = `${origin}/graphql`;
+  const query = 'query LeakLensIntrospectionProbe { __schema { queryType { name } mutationType { name } types { name } } }';
+
+  try {
+    const response = await fetchWithTimeout(target, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({query}),
+    }, settings);
+
+    if (!response.ok) return;
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!/json/i.test(contentType)) return;
+
+    const data = await response.json();
+    const schema = data?.data?.__schema;
+    if (!schema?.queryType?.name || !Array.isArray(schema.types)) return;
+
+    makeFinding(findings, {
+      severity: 'medium',
+      category: 'API',
+      title: 'Public GraphQL Introspection Enabled',
+      path: target,
+      explanation: 'The GraphQL endpoint exposes its schema to unauthenticated requests.',
+      confidence: 86,
+      evidence: truncate(JSON.stringify({queryType: schema.queryType, mutationType: schema.mutationType, typeCount: schema.types.length})),
+      recommendation: 'Disable introspection for unauthenticated production requests or require authorization for schema discovery.',
+    });
+  } catch {
+    // GraphQL probing is best-effort.
+  }
+}
+
+async function runNetworkScan(url: string, assetUrls: string[] = [], discoveredUrls: string[] = [], settings?: ScanSettings) {
   const findings: Finding[] = [];
 
   try {
-    await detectResponseHeaders(url, findings);
+    await detectResponseHeaders(url, findings, settings);
   } catch {
     // Header checks are best-effort.
   }
 
   try {
-    await detectExposedFiles(url, findings);
+    await detectExposedFiles(url, findings, settings);
   } catch {
     // Exposed-file checks are best-effort.
   }
@@ -403,7 +635,21 @@ async function runNetworkScan(url: string, assetUrls: string[] = [], settings?: 
     // Cookie checks are best-effort.
   }
 
-  return findings;
+  try {
+    await detectGraphqlIntrospection(url, findings, settings);
+  } catch {
+    // API checks are best-effort.
+  }
+
+  try {
+    await verifyDiscoveredEndpoints(url, discoveredUrls, assetUrls, findings, settings);
+  } catch {
+    // Active verification checks are best-effort.
+  }
+
+  return settings?.severityMode === 'audit'
+    ? findings
+    : findings.filter(finding => finding.severity !== 'low');
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -418,8 +664,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'RUN_NETWORK_SCAN' && typeof request.url === 'string') {
     const assetUrls = Array.isArray(request.assetUrls) ? request.assetUrls.filter(item => typeof item === 'string') as string[] : [];
-    const settings = typeof request.settings === 'object' && request.settings ? request.settings as {sourceMaps?: boolean} : undefined;
-    void runNetworkScan(request.url, assetUrls, settings).then(findings => {
+    const discoveredUrls = Array.isArray(request.discoveredUrls) ? request.discoveredUrls.filter(item => typeof item === 'string') as string[] : [];
+    const settings = typeof request.settings === 'object' && request.settings ? request.settings as ScanSettings : undefined;
+    void runNetworkScan(request.url, assetUrls, discoveredUrls, settings).then(findings => {
       sendResponse({findings});
     });
     return true;

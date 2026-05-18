@@ -1,11 +1,7 @@
-@import url("https://cdn.jsdelivr.net/fontsource/fonts/geom@latest/latin-400-normal.css");
-@import url("https://cdn.jsdelivr.net/fontsource/fonts/geom@latest/latin-500-normal.css");
-@import url("https://cdn.jsdelivr.net/fontsource/fonts/geom@latest/latin-600-normal.css");
-@import url("https://cdn.jsdelivr.net/fontsource/fonts/geom@latest/latin-700-normal.css");
 @import "tailwindcss";
 
 @theme {
-  --font-sans: Geom, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --text-xs: 0.66rem;
   --text-xs--line-height: 0.95rem;
@@ -41,7 +37,7 @@ body,
 
 body {
   font-size: 13px;
-  font-family: Geom, ui-sans-serif, system-ui, sans-serif;
+  font-family: ui-sans-serif, system-ui, sans-serif;
   background: #09090b;
   overflow: hidden;
 }

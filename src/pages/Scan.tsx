@@ -18,6 +18,12 @@ export default function Scan() {
   }, [refreshScan]);
 
   useEffect(() => {
+    if (isScanning) {
+      setProgress(0);
+    }
+  }, [isScanning]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setProgress(prev => (isScanning ? Math.min(prev + 8, 92) : 100));
     }, 80);
