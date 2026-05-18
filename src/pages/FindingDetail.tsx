@@ -9,7 +9,7 @@ import {useScan} from '../popup/ScanContext';
 export default function FindingDetail() {
   const {id} = useParams();
   const navigate = useNavigate();
-  const {dismissFinding, refreshScan, result} = useScan();
+  const {dismissFinding, result} = useScan();
   const finding = result.findings.find(item => item.id === id);
   const closeFinding = () => {
     if (id) {
@@ -27,7 +27,7 @@ export default function FindingDetail() {
           title="Issue not found"
           description="It is not part of the latest scan for this tab."
           actionLabel="Scan again"
-          onAction={() => void refreshScan()}
+          onAction={() => navigate('/scan')}
         />
       </div>
     );

@@ -9,7 +9,7 @@ import {useScan} from '../popup/ScanContext';
 
 export default function FindingsList() {
   const navigate = useNavigate();
-  const {refreshScan, result} = useScan();
+  const {result} = useScan();
   const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'high' | 'medium' | 'low'>('all');
   const filteredFindings = useMemo(
     () => severityFilter === 'all'
@@ -61,7 +61,7 @@ export default function FindingsList() {
               title="Nothing here"
               description={result.findings.length ? 'No issues match this filter.' : 'Scan the current tab to fill this list.'}
               actionLabel="Scan now"
-              onAction={() => void refreshScan()}
+              onAction={() => navigate('/scan')}
             />
           )}
         </div>

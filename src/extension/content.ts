@@ -2,12 +2,17 @@ import {Finding, FindingSeverity, ScanResult, ScanStep, Stat} from '../lib/scanT
 
 const MAX_EVIDENCE_LENGTH = 160;
 const defaultScanSettings = {
+  activeVerification: true,
+  authProfile: 'currentSession' as 'anonymous' | 'currentSession',
   autoScan: true,
+  bundleAnalysis: true,
   overlays: true,
   lowConfidence: false,
   sourceMaps: true,
   buckets: true,
   configs: true,
+  dependencyCves: true,
+  severityMode: 'serious' as 'serious' | 'audit',
 };
 
 type ScanSettings = typeof defaultScanSettings;
@@ -118,6 +123,8 @@ const secretPatterns: Array<{
 ];
 
 const riskyStorageKeys = /(token|secret|password|passwd|pwd|auth|session|jwt|api[_-]?key|access[_-]?key|refresh)/i;
+const storageMetadataKey = /(?:^|[:._-])(exp|expiry|expires|expiration|ttl|created|updated|timestamp|time)(?:$|[:._-])/i;
+const sensitiveCloudObjectPath = /(?:^|\/)(?:backup|dump|database|db|prod|production|secret|credential|private|config|env)[^/?#]*(?:\.(?:zip|tar|tgz|gz|sql|bak|backup|env|json|ya?ml|pem|key|p12|pfx)|$)/i;
 
 function hasSecretLikeValue(value: string) {
   return secretPatterns.some(pattern => {
@@ -209,6 +216,10 @@ function detectConfigs(findings: Finding[]) {
   }
 }
 
+function auditMode(settings: ScanSettings) {
+  return settings.severityMode === 'audit';
+}
+
 function detectSourceMaps(findings: Finding[]) {
   const scripts = Array.from(document.scripts).filter(script => script.src);
   const sourceMapComment = collectPageText().find(source => /sourceMappingURL=/i.test(source.text));
@@ -242,39 +253,33 @@ function detectSourceMaps(findings: Finding[]) {
   }
 }
 
-function detectRoutes(findings: Finding[]) {
-  const routeRegex = /\/(?:admin|debug|internal|devtools|staging|graphql|api\/debug)[A-Za-z0-9/_-]*/gi;
-  const text = document.documentElement.outerHTML;
-  const routes = Array.from(new Set(text.match(routeRegex) ?? [])).slice(0, 6);
-
-  for (const route of routes) {
-    makeFinding(findings, {
-      severity: /debug|internal|devtools/i.test(route) ? 'high' : 'medium',
-      category: 'Routes',
-      title: 'Sensitive Route Reference Found',
-      path: new URL(route, window.location.href).href,
-      explanation: 'A route name associated with administration, debugging, or internal tooling is visible to the client.',
-      confidence: 82,
-      evidence: route,
-      recommendation: 'Confirm the route is protected server-side and remove debug-only routes from production bundles.',
-    });
-  }
-}
-
 function detectStorage(findings: Finding[]) {
   const storageRegex = /https?:\/\/[^\s"'<>]*(?:s3\.amazonaws\.com|storage\.googleapis\.com|blob\.core\.windows\.net)[^\s"'<>]*/gi;
-  const matches = Array.from(new Set(document.documentElement.outerHTML.match(storageRegex) ?? [])).slice(0, 4);
+  const matches = Array.from(new Set(document.documentElement.outerHTML.match(storageRegex) ?? []))
+    .filter(url => {
+      try {
+        const parsed = new URL(url);
+        const path = parsed.pathname.replace(/^\/+|\/+$/g, '');
+        const pathLooksLikeObject = path.includes('/');
+        const isKnownPublicProvider = /(^|\.)github-cloud\.s3\.amazonaws\.com$/i.test(parsed.hostname);
+
+        return pathLooksLikeObject && sensitiveCloudObjectPath.test(path) && !isKnownPublicProvider;
+      } catch {
+        return false;
+      }
+    })
+    .slice(0, 4);
 
   for (const match of matches) {
     makeFinding(findings, {
       severity: 'low',
       category: 'Storage',
-      title: 'Cloud Storage URL Found',
+      title: 'Sensitive Cloud Storage Object URL',
       path: match,
-      explanation: 'A public cloud storage URL is referenced by the page.',
-      confidence: 74,
+      explanation: 'A cloud storage URL references a sensitive-looking object such as a backup, dump, environment file, config, or key.',
+      confidence: 82,
       evidence: truncate(match),
-      recommendation: 'Verify bucket access policies and avoid exposing browsable storage paths.',
+      recommendation: 'Verify the object is not public. Remove sensitive files from public buckets and rotate exposed credentials.',
     });
   }
 }
@@ -295,13 +300,16 @@ function detectSensitiveBrowserStorage(findings: Finding[]) {
     for (let index = 0; index < store.storage.length; index += 1) {
       const key = store.storage.key(index) ?? '';
       const value = store.storage.getItem(key) ?? '';
+      const keyLooksSensitive = riskyStorageKeys.test(key);
+      const valueLooksSecret = hasSecretLikeValue(value);
+      const isMetadataOnly = storageMetadataKey.test(key) && /^(?:\d{10}|\d{13}|true|false|null|undefined|"[^"]*"|'[^']*')$/i.test(value.trim());
 
-      if (!riskyStorageKeys.test(key) && !hasSecretLikeValue(value)) {
+      if (isMetadataOnly || (!keyLooksSensitive && !valueLooksSecret)) {
         continue;
       }
 
       makeFinding(findings, {
-        severity: riskyStorageKeys.test(key) ? 'high' : 'medium',
+        severity: keyLooksSensitive ? 'high' : 'medium',
         category: 'Browser Storage',
         title: 'Sensitive Value in Browser Storage',
         path: `${store.name}.${key}`,
@@ -335,19 +343,6 @@ function detectInsecureForms(findings: Finding[]) {
       });
     }
 
-    const passwordInput = form.querySelector<HTMLInputElement>('input[type="password"]');
-    if (passwordInput && passwordInput.autocomplete !== 'current-password' && passwordInput.autocomplete !== 'new-password') {
-      makeFinding(findings, {
-        severity: 'low',
-        category: 'Forms',
-        title: 'Password Field Missing Autocomplete Hint',
-        path: actionUrl.href,
-        explanation: 'A password field is missing a specific autocomplete value, which can hurt password-manager behavior.',
-        confidence: 70,
-        evidence: truncate(passwordInput.outerHTML),
-        recommendation: 'Use autocomplete="current-password" or autocomplete="new-password" as appropriate.',
-      });
-    }
   }
 }
 
@@ -376,78 +371,6 @@ function detectMixedContent(findings: Finding[]) {
       confidence: 88,
       evidence: truncate(node.outerHTML),
       recommendation: 'Load all assets over HTTPS and remove insecure HTTP references.',
-    });
-  }
-}
-
-function detectUnsafeExternalLinks(findings: Finding[]) {
-  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[target="_blank"][href]'))
-    .filter(link => {
-      const rel = link.rel.toLowerCase();
-      return !rel.includes('noopener') || !rel.includes('noreferrer');
-    })
-    .slice(0, 6);
-
-  for (const link of links) {
-    makeFinding(findings, {
-      severity: 'low',
-      category: 'Links',
-      title: 'New Tab Link Missing rel Protection',
-      path: new URL(link.href, window.location.href).href,
-      explanation: 'A target="_blank" link is missing noopener or noreferrer protection.',
-      confidence: 86,
-      evidence: truncate(link.outerHTML),
-      recommendation: 'Add rel="noopener noreferrer" to external links that open a new tab.',
-    });
-  }
-}
-
-function detectIframes(findings: Finding[]) {
-  const iframes = Array.from(document.querySelectorAll<HTMLIFrameElement>('iframe[src]'))
-    .filter(iframe => !iframe.hasAttribute('sandbox'))
-    .slice(0, 4);
-
-  for (const iframe of iframes) {
-    makeFinding(findings, {
-      severity: 'medium',
-      category: 'Frames',
-      title: 'Iframe Without Sandbox',
-      path: iframe.src,
-      explanation: 'An embedded frame is not restricted with the sandbox attribute.',
-      confidence: 76,
-      evidence: truncate(iframe.outerHTML),
-      recommendation: 'Add a least-privilege sandbox attribute to third-party or untrusted iframes.',
-    });
-  }
-}
-
-function detectMissingSecurityMeta(findings: Finding[]) {
-  const hasCspMeta = Boolean(document.querySelector('meta[http-equiv="Content-Security-Policy" i]'));
-  const hasReferrerPolicy = Boolean(document.querySelector('meta[name="referrer" i]'));
-
-  if (!hasCspMeta) {
-    makeFinding(findings, {
-      severity: 'medium',
-      category: 'Headers',
-      title: 'No CSP Meta Tag Found',
-      path: window.location.href,
-      explanation: 'No Content Security Policy meta tag was found in the page markup. Header-based CSP may still exist, but it is not visible to this content script.',
-      confidence: 55,
-      evidence: '<meta http-equiv="Content-Security-Policy" ...> not found',
-      recommendation: 'Use a Content Security Policy header where possible, or add a restrictive CSP meta tag as a fallback.',
-    });
-  }
-
-  if (!hasReferrerPolicy) {
-    makeFinding(findings, {
-      severity: 'low',
-      category: 'Headers',
-      title: 'No Referrer Policy Meta Tag Found',
-      path: window.location.href,
-      explanation: 'No referrer policy meta tag was found in the page markup. A response header may still be present.',
-      confidence: 52,
-      evidence: '<meta name="referrer" ...> not found',
-      recommendation: 'Set Referrer-Policy, preferably as an HTTP response header.',
     });
   }
 }
@@ -510,11 +433,33 @@ function collectAssetUrls() {
   ])).slice(0, 24);
 }
 
+function collectDiscoveredUrls() {
+  const values = [
+    ...Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]')).map(link => link.href),
+    ...Array.from(document.querySelectorAll<HTMLFormElement>('form[action]')).map(form => form.action),
+    ...Array.from(document.querySelectorAll<HTMLIFrameElement>('iframe[src]')).map(frame => frame.src),
+    ...Array.from(document.querySelectorAll<HTMLImageElement>('img[src]')).map(image => image.src),
+    ...Array.from(document.scripts).map(script => script.src),
+  ].filter(Boolean);
+
+  return Array.from(new Set(values))
+    .filter(url => {
+      try {
+        const parsed = new URL(url, window.location.href);
+        return /^https?:$/i.test(parsed.protocol);
+      } catch {
+        return false;
+      }
+    })
+    .slice(0, 80);
+}
+
 async function getNetworkFindings(url: string, settings: ScanSettings) {
   try {
     const response = await chrome.runtime.sendMessage({
       action: 'RUN_NETWORK_SCAN',
       assetUrls: collectAssetUrls(),
+      discoveredUrls: collectDiscoveredUrls(),
       settings,
       url,
     });
@@ -530,10 +475,12 @@ function calculateScore(findings: Finding[]) {
 }
 
 function buildStats(findings: Finding[]): Stat[] {
+  const exposureCategories = ['Exposure', 'Source Maps', 'Browser Storage', 'API'];
+
   return [
     {id: 'secrets', label: 'Secrets Found', value: findings.filter(finding => finding.category === 'Secrets').length},
-    {id: 'routes', label: 'Exposed Routes', value: findings.filter(finding => finding.category === 'Routes').length},
-    {id: 'other', label: 'Other Issues', value: findings.filter(finding => finding.category !== 'Secrets' && finding.category !== 'Routes').length},
+    {id: 'exposure', label: 'Exposures', value: findings.filter(finding => exposureCategories.includes(finding.category)).length},
+    {id: 'other', label: 'Other Issues', value: findings.filter(finding => finding.category !== 'Secrets' && !exposureCategories.includes(finding.category)).length},
   ];
 }
 
@@ -555,16 +502,10 @@ function buildSteps(findings: Finding[]): ScanStep[] {
       description: `${count('Secrets')} exposed secret pattern${count('Secrets') === 1 ? '' : 's'} found.`,
     },
     {
-      id: 'routes',
-      name: 'Route Inspection',
-      status: count('Routes') > 0 ? 'warning' : 'complete',
-      description: `${count('Routes')} sensitive route reference${count('Routes') === 1 ? '' : 's'} found.`,
-    },
-    {
       id: 'storage',
-      name: 'Page Hardening',
-      status: count('Storage') + count('Source Maps') + count('Browser Storage') + count('Forms') + count('Transport') + count('Links') + count('Frames') + count('Headers') > 0 ? 'warning' : 'complete',
-      description: `${count('Storage') + count('Source Maps') + count('Browser Storage') + count('Forms') + count('Transport') + count('Links') + count('Frames') + count('Headers')} extra page issue${count('Storage') + count('Source Maps') + count('Browser Storage') + count('Forms') + count('Transport') + count('Links') + count('Frames') + count('Headers') === 1 ? '' : 's'} found.`,
+      name: 'Exposure Checks',
+      status: count('Storage') + count('Source Maps') + count('Browser Storage') + count('Forms') + count('Transport') + count('Headers') + count('Exposure') + count('API') > 0 ? 'warning' : 'complete',
+      description: `${count('Storage') + count('Source Maps') + count('Browser Storage') + count('Forms') + count('Transport') + count('Headers') + count('Exposure') + count('API')} high-signal issue${count('Storage') + count('Source Maps') + count('Browser Storage') + count('Forms') + count('Transport') + count('Headers') + count('Exposure') + count('API') === 1 ? '' : 's'} found.`,
     },
   ];
 }
@@ -580,23 +521,24 @@ async function runScan(settingsInput?: Partial<ScanSettings>): Promise<ScanResul
   if (settings.sourceMaps) {
     detectSourceMaps(findings);
   }
-  detectRoutes(findings);
   if (settings.buckets) {
     detectStorage(findings);
   }
   detectSensitiveBrowserStorage(findings);
   detectInsecureForms(findings);
   detectMixedContent(findings);
-  detectUnsafeExternalLinks(findings);
-  detectIframes(findings);
-  detectMissingSecurityMeta(findings);
   detectDomXssSignals(findings);
-  detectOutdatedLibraryHints(findings);
+  if (auditMode(settings)) {
+    detectOutdatedLibraryHints(findings);
+  }
   appendFindings(findings, await getNetworkFindings(window.location.href, settings));
 
-  const visibleFindings = settings.lowConfidence
+  const confidenceFilteredFindings = settings.lowConfidence
     ? findings
     : findings.filter(finding => finding.confidence >= 60);
+  const visibleFindings = auditMode(settings)
+    ? confidenceFilteredFindings
+    : confidenceFilteredFindings.filter(finding => finding.severity !== 'low');
 
   const hostname = window.location.hostname || 'Current page';
 
