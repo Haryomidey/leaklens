@@ -1,9 +1,30 @@
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap");
+@import url("https://cdn.jsdelivr.net/fontsource/fonts/geom@latest/latin-400-normal.css");
+@import url("https://cdn.jsdelivr.net/fontsource/fonts/geom@latest/latin-500-normal.css");
+@import url("https://cdn.jsdelivr.net/fontsource/fonts/geom@latest/latin-600-normal.css");
+@import url("https://cdn.jsdelivr.net/fontsource/fonts/geom@latest/latin-700-normal.css");
 @import "tailwindcss";
 
 @theme {
-  --font-sans: Poppins, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: Geom, ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --text-xs: 0.66rem;
+  --text-xs--line-height: 0.95rem;
+  --text-sm: 0.75rem;
+  --text-sm--line-height: 1.05rem;
+  --text-base: 0.84rem;
+  --text-base--line-height: 1.25rem;
+  --text-lg: 0.94rem;
+  --text-lg--line-height: 1.3rem;
+  --text-xl: 1.05rem;
+  --text-xl--line-height: 1.45rem;
+  --text-2xl: 1.2rem;
+  --text-2xl--line-height: 1.6rem;
+  --text-3xl: 1.42rem;
+  --text-3xl--line-height: 1.75rem;
+  --text-4xl: 1.7rem;
+  --text-4xl--line-height: 2rem;
+  --text-5xl: 1.95rem;
+  --text-5xl--line-height: 2.25rem;
 }
 
 html,
@@ -19,7 +40,9 @@ body,
 }
 
 body {
-  font-family: Poppins, ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  font-family: Geom, ui-sans-serif, system-ui, sans-serif;
+  background: #09090b;
   overflow: hidden;
 }
 
@@ -50,4 +73,101 @@ body {
 
 .leaklens-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #a1a1aa;
+}
+
+/* Dark extension surface */
+.bg-white,
+.bg-zinc-50,
+.bg-zinc-100 {
+  background-color: #111113 !important;
+}
+
+.bg-transparent {
+  background-color: transparent !important;
+}
+
+.border-zinc-100,
+.border-zinc-200 {
+  border-color: #27272a !important;
+}
+
+.text-zinc-900 {
+  color: #f4f4f5 !important;
+}
+
+.text-zinc-800,
+.text-zinc-700,
+.text-zinc-600 {
+  color: #d4d4d8 !important;
+}
+
+.text-zinc-500,
+.text-zinc-400 {
+  color: #a1a1aa !important;
+}
+
+.bg-zinc-900 {
+  background-color: #fafafa !important;
+}
+
+.hover\:bg-zinc-50:hover,
+.hover\:bg-zinc-100:hover,
+.hover\:bg-zinc-800:hover {
+  background-color: #18181b !important;
+}
+
+.hover\:text-zinc-900:hover,
+.hover\:text-zinc-700:hover {
+  color: #ffffff !important;
+}
+
+.shadow-sm,
+.shadow-lg,
+.shadow-2xl {
+  box-shadow: none !important;
+}
+
+.leaklens-scrollbar {
+  scrollbar-color: #52525b transparent;
+}
+
+.leaklens-scrollbar::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-color: #09090b;
+}
+
+button {
+  border-color: #3f3f46;
+}
+
+button.bg-zinc-900,
+.bg-zinc-900.text-white {
+  background-color: #f4f4f5 !important;
+  border-color: #f4f4f5 !important;
+  color: #09090b !important;
+}
+
+button.bg-zinc-900:hover,
+.hover\:bg-zinc-800:hover {
+  background-color: #d4d4d8 !important;
+  color: #09090b !important;
+}
+
+button.bg-transparent,
+button.bg-white,
+button.bg-zinc-100 {
+  color: #f4f4f5 !important;
+}
+
+button.bg-transparent:hover,
+button.bg-white:hover,
+button.bg-zinc-100:hover {
+  background-color: #27272a !important;
+  color: #ffffff !important;
+}
+
+.rounded-lg,
+.rounded-md,
+.rounded {
+  border-color: #3f3f46;
 }

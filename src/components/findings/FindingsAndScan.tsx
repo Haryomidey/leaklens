@@ -54,12 +54,12 @@ export function ScanStepRow({step}: {step: ScanStep}) {
       <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
         {icons[step.status]}
       </div>
-      <div className="flex-1">
+      <div className="min-w-0 flex-1">
         <div className="mb-0.5 flex items-center justify-between">
-          <span className="text-sm font-semibold">{step.name}</span>
+          <span className="text-xs font-semibold">{step.name}</span>
           <span className="text-[11px] font-medium capitalize text-zinc-400">{step.status}</span>
         </div>
-        <p className="text-xs leading-snug text-zinc-500">{step.description}</p>
+        <p className="text-[11px] leading-snug text-zinc-500">{step.description}</p>
       </div>
     </div>
   );

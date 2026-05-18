@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Loader2} from 'lucide-react';
+import {Check, Loader2} from 'lucide-react';
 import {PopupHeader} from '../components/layout/PopupHeader';
 import {ScanStepRow} from '../components/findings/FindingsAndScan';
 import {Button} from '../components/ui/Button';
@@ -10,6 +10,7 @@ export default function Scan() {
   const navigate = useNavigate();
   const [progress, setProgress] = useState(0);
   const {error, isScanning, refreshScan, result} = useScan();
+  const isComplete = !isScanning && progress >= 100;
 
   useEffect(() => {
     setProgress(0);
@@ -28,16 +29,26 @@ export default function Scan() {
     <div className="flex min-h-full flex-col">
       <PopupHeader />
 
-      <div className="px-4 py-6 text-center">
-        <div className="relative mb-6 inline-flex items-center justify-center">
-          <Loader2 className="h-16 w-16 animate-spin text-zinc-200" strokeWidth={1} />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-xl font-black tracking-tighter">{progress}%</span>
-          </div>
+      <div className="px-4 py-5 text-center">
+        <div className="relative mb-5 inline-flex h-14 w-14 items-center justify-center">
+          {isComplete ? (
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+              <Check className="h-6 w-6" />
+            </div>
+          ) : (
+            <>
+              <Loader2 className="h-14 w-14 animate-spin text-zinc-200" strokeWidth={1} />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-base font-semibold tracking-tight">{progress}%</span>
+              </div>
+            </>
+          )}
         </div>
-        <h2 className="mb-1 text-lg font-semibold">Checking {result.hostname}</h2>
-        <p className="text-sm text-zinc-500">
-          {error ?? 'Looking through scripts, routes, and visible page config.'}
+        <h2 className="mb-1 text-base font-semibold">
+          {isComplete ? `Checked ${result.hostname}` : `Checking ${result.hostname}`}
+        </h2>
+        <p className="text-xs leading-relaxed text-zinc-500">
+          {error ?? (isComplete ? 'Scan complete.' : 'Looking through scripts, routes, and visible page config.')}
         </p>
       </div>
 

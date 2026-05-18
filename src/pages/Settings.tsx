@@ -3,17 +3,7 @@ import {PopupHeader} from '../components/layout/PopupHeader';
 import {ToggleRow} from '../components/common/CommonUI';
 import {Button} from '../components/ui/Button';
 import {useScan} from '../popup/ScanContext';
-
-const defaultSettings = {
-  autoScan: false,
-  overlays: true,
-  lowConfidence: false,
-  sourceMaps: true,
-  buckets: true,
-  configs: true,
-};
-
-type SettingsState = typeof defaultSettings;
+import {defaultSettings, mergeSettings, SettingsState} from '../lib/settings';
 
 function canUseStorage() {
   return typeof chrome !== 'undefined' && Boolean(chrome.storage?.local);
@@ -29,7 +19,7 @@ export default function Settings() {
 
     void chrome.storage.local.get<{leaklensSettings?: SettingsState}>('leaklensSettings').then(stored => {
       if (stored.leaklensSettings) {
-        setSettings({...defaultSettings, ...stored.leaklensSettings});
+        setSettings(mergeSettings(stored.leaklensSettings));
       }
     });
   }, []);

@@ -1,5 +1,6 @@
 import {createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState} from 'react';
 import {emptyScanResult, ScanResult} from '../lib/scanTypes';
+import {defaultSettings, mergeSettings, SettingsState} from '../lib/settings';
 
 interface ScanContextValue {
   dismissFinding: (id: string) => void;
@@ -50,8 +51,17 @@ function waitForContentScript() {
   });
 }
 
-async function requestScan(tabId: number) {
-  const response = await chrome.tabs.sendMessage(tabId, {action: 'RUN_SCAN'});
+async function loadSettings() {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    return defaultSettings;
+  }
+
+  const stored = await chrome.storage.local.get<{leaklensSettings?: Partial<SettingsState>}>('leaklensSettings');
+  return mergeSettings(stored.leaklensSettings);
+}
+
+async function requestScan(tabId: number, settings: SettingsState) {
+  const response = await chrome.tabs.sendMessage(tabId, {action: 'RUN_SCAN', settings});
 
   if (!response?.result) {
     throw new Error('The page did not return scan results. Refresh the page and try again.');
@@ -105,6 +115,7 @@ export function ScanProvider({children}: {children: ReactNode}) {
 
     try {
       const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+      const settings = await loadSettings();
 
       if (!tab?.id) {
         throw new Error('No active tab found.');
@@ -118,7 +129,7 @@ export function ScanProvider({children}: {children: ReactNode}) {
       }
 
       try {
-        setResult(await requestScan(tab.id));
+        setResult(await requestScan(tab.id, settings));
       } catch (scanError) {
         if (!isMissingReceiver(scanError) || !canInjectScanner()) {
           throw scanError;
@@ -129,7 +140,7 @@ export function ScanProvider({children}: {children: ReactNode}) {
           files: ['content.js'],
         });
         await waitForContentScript();
-        setResult(await requestScan(tab.id));
+        setResult(await requestScan(tab.id, settings));
       }
     } catch (scanError) {
       const message = scanError instanceof Error ? scanError.message : 'Unable to scan the current page.';
@@ -141,7 +152,11 @@ export function ScanProvider({children}: {children: ReactNode}) {
   }, []);
 
   useEffect(() => {
-    void refreshScan();
+    void loadSettings().then(settings => {
+      if (settings.autoScan) {
+        void refreshScan();
+      }
+    });
   }, [refreshScan]);
 
   const value = useMemo(

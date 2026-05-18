@@ -42,14 +42,32 @@ export default function Report() {
     await navigator.clipboard.writeText(reportText);
   };
 
-  const downloadReport = () => {
+  const makeFileName = () => {
+    const safeHost = (result.hostname || 'page').replace(/[^a-z0-9.-]+/gi, '-').replace(/^-+|-+$/g, '');
+    return `leaklens-${safeHost || 'report'}-${new Date(result.scannedAt).toISOString().slice(0, 10)}.txt`;
+  };
+
+  const downloadReport = async () => {
     const blob = new Blob([reportText], {type: 'text/plain;charset=utf-8'});
     const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `leaklens-${result.hostname || 'report'}.txt`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+
+    try {
+      if (typeof chrome !== 'undefined' && chrome.downloads?.download) {
+        await chrome.downloads.download({
+          url,
+          filename: makeFileName(),
+          saveAs: true,
+        });
+        return;
+      }
+
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = makeFileName();
+      anchor.click();
+    } finally {
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
   };
 
   const shareReport = async () => {
@@ -68,30 +86,30 @@ export default function Report() {
     <div className="flex min-h-full flex-col">
       <PopupHeader />
 
-      <div className="space-y-6 px-4 py-6">
+      <div className="space-y-5 px-4 py-5">
         <div className="text-center">
-          <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-900">
-            <ShieldCheck className="h-6 w-6 text-white" />
+          <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-900">
+            <ShieldCheck className="h-5 w-5 text-white" />
           </div>
-          <h2 className="text-xl font-semibold">Page report</h2>
-          <p className="text-sm text-zinc-500">{result.hostname} - {reportDate}</p>
+          <h2 className="text-base font-semibold">Page report</h2>
+          <p className="text-xs text-zinc-500">{result.hostname} - {reportDate}</p>
         </div>
 
-        <Card className="border-zinc-200 bg-white p-4">
-          <div className="grid grid-cols-2 gap-4">
+        <Card className="border-zinc-200 bg-white p-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="border-r border-zinc-100">
               <span className="mb-1 block text-xs font-medium text-zinc-500">Status</span>
-              <span className="text-2xl font-semibold text-zinc-900">{riskLevel}</span>
+              <span className="text-xl font-semibold text-zinc-900">{riskLevel}</span>
             </div>
             <div>
               <span className="mb-1 block text-xs font-medium text-zinc-500">Issues</span>
-              <span className="text-2xl font-semibold text-zinc-900">{String(result.findings.length).padStart(2, '0')}</span>
+              <span className="text-xl font-semibold text-zinc-900">{String(result.findings.length).padStart(2, '0')}</span>
             </div>
           </div>
         </Card>
 
-        <section className="space-y-3">
-          <h3 className="text-sm font-semibold text-zinc-900">Breakdown</h3>
+        <section className="space-y-2.5">
+          <h3 className="text-xs font-semibold text-zinc-900">Breakdown</h3>
           <div className="space-y-2">
             {severityBreakdown.map(item => (
               <div key={item.label} className="flex items-center gap-3">
@@ -108,12 +126,12 @@ export default function Report() {
           </div>
         </section>
 
-        <section className="space-y-3">
-          <h3 className="text-sm font-semibold text-zinc-900">Next steps</h3>
-          <ul className="space-y-2">
+        <section className="space-y-2.5">
+          <h3 className="text-xs font-semibold text-zinc-900">Next steps</h3>
+          <ul className="space-y-1.5">
             {actions.map((action, index) => (
-              <li key={action} className="flex items-start gap-2 text-sm text-zinc-600">
-                <div className="mt-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-zinc-100 text-[10px] font-bold">{index + 1}</div>
+              <li key={action} className="flex items-start gap-2 text-xs leading-snug text-zinc-600">
+                <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-zinc-100 text-[10px] font-semibold">{index + 1}</div>
                 {action}
               </li>
             ))}

@@ -1,12 +1,24 @@
 import {AlertTriangle, MapPin} from 'lucide-react';
 import {motion} from 'motion/react';
+import {useEffect, useState} from 'react';
 import {PopupHeader} from '../components/layout/PopupHeader';
 import {Badge} from '../components/ui/Badge';
+import {EmptyState} from '../components/common/CommonUI';
+import {defaultSettings, mergeSettings} from '../lib/settings';
 import {useScan} from '../popup/ScanContext';
 
 export default function HeatmapPreview() {
   const {result} = useScan();
+  const [showPreview, setShowPreview] = useState(defaultSettings.overlays);
   const visibleFindings = result.findings.slice(0, 4);
+
+  useEffect(() => {
+    if (typeof chrome === 'undefined' || !chrome.storage?.local) return;
+
+    void chrome.storage.local.get<{leaklensSettings?: Partial<typeof defaultSettings>}>('leaklensSettings').then(stored => {
+      setShowPreview(mergeSettings(stored.leaklensSettings).overlays);
+    });
+  }, []);
 
   return (
     <div className="flex min-h-full flex-col">
@@ -27,7 +39,12 @@ export default function HeatmapPreview() {
           </div>
 
           <div className="space-y-3 p-4">
-            {visibleFindings.length > 0 ? (
+            {!showPreview ? (
+              <EmptyState
+                title="Preview is off"
+                description="Turn on Page preview in settings to show issue markers here."
+              />
+            ) : visibleFindings.length > 0 ? (
               visibleFindings.map((finding, index) => (
                 <motion.div
                   key={finding.id}
